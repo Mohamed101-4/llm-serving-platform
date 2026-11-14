@@ -91,3 +91,16 @@ something_else 1
 """
     m = parse_metrics(text)
     assert m == {"running": 5, "waiting": 7, "kv_cache": 0.42, "prefix_hits": 100, "prefix_queries": 400}
+
+
+def test_parse_metrics_llamacpp():
+    text = """# HELP llamacpp:requests_processing Number of requests processing.
+llamacpp:requests_processing 3
+llamacpp:requests_deferred 2
+llamacpp:prompt_tokens_total 383
+llamacpp:prompt_tokens_cached_total 371
+"""
+    m = parse_metrics(text)
+    assert m["running"] == 3 and m["waiting"] == 2
+    assert m["prefix_hits"] == 371 and m["prefix_queries"] == 754  # processed + cached
+    assert "kv_cache" not in m

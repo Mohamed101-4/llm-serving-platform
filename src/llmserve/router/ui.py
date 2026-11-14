@@ -42,28 +42,32 @@ class LoadGenerator:
         self.inflight = 0
         self.task: asyncio.Task | None = None
         self.client: httpx.AsyncClient | None = None
-        self.model = "mock-model"
+        self.model: str | None = None
 
     async def set(self, rps: float, base_url: str, workers) -> None:
         self.rps = max(0.0, min(rps, 200.0))
         if self.rps and (self.task is None or self.task.done()):
             self.client = httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=2.0),
                                             limits=httpx.Limits(max_connections=2000))
-            await self._detect_model(workers)
+            await self.detect_model(workers)
             self.task = asyncio.create_task(self._run(base_url.rstrip("/")))
 
-    async def _detect_model(self, workers) -> None:
-        for w in workers:
-            try:
-                r = await self.client.get(f"{w.url}/v1/models", timeout=2)
-                self.model = r.json()["data"][0]["id"]
-                return
-            except Exception:  # noqa: BLE001 - any worker that answers will do
-                continue
+    async def detect_model(self, workers) -> str:
+        """Model id served by the workers (vLLM, llama.cpp and the mock all list it at /v1/models)."""
+        if self.model:
+            return self.model
+        async with httpx.AsyncClient(timeout=2) as c:
+            for w in workers:
+                try:
+                    self.model = (await c.get(f"{w.url}/v1/models")).json()["data"][0]["id"]
+                    return self.model
+                except Exception:  # noqa: BLE001 - any worker that answers will do
+                    continue
+        return "unknown"
 
     async def _one(self, url: str, req) -> None:
         self.inflight += 1
-        body = {"model": self.model, "messages": req.messages, "max_tokens": req.max_tokens,
+        body = {"model": self.model or "unknown", "messages": req.messages, "max_tokens": req.max_tokens,
                 "stream": True, "ignore_eos": True, "temperature": 0.0}
         try:
             async with self.client.stream("POST", f"{url}/v1/chat/completions", json=body) as r:
@@ -115,6 +119,7 @@ def install_ui(app: FastAPI, ctl, workers, prefill_workers, metrics) -> None:
         shed = sum(1 for e in recent if e["code"] == 429)
         new = [e for e in ctl.events if e["id"] > since][-300:]
         return {
+            "model": await gen.detect_model(workers),
             "policy": ctl.pol.name, "policies": sorted(POLICIES),
             "admission": {"enabled": ctl.admission is not None,
                           "slo_ms": ctl.admission.slo_ttft_ms if ctl.admission else None},

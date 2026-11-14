@@ -5,6 +5,8 @@
 #   RPS=20 PREFIXES=64 TAG=many-prefixes ./scripts/compare_policies.sh
 #
 # On a GPU machine, start vLLM workers first and set WORKER_URLS, BACKEND=vllm, MODEL=...
+# Real small model on a laptop (after scripts/local_llm/setup.sh):
+#   BACKEND=llamacpp MODEL=qwen2.5-0.5b-instruct-q4_k_m WORKERS=2 RPS=2 PHASE=local-llm ./scripts/compare_policies.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 RPS=${RPS:-15}
@@ -15,14 +17,17 @@ POLICIES=${POLICIES:-"round_robin least_load prefix_aware"}
 BACKEND=${BACKEND:-mock}
 MODEL=${MODEL:-mock-model}
 TAG=${TAG:-default}
+PHASE=${PHASE:-phase2}
+LOCAL_BACKEND=""
+[[ "$BACKEND" == "llamacpp" ]] && LOCAL_BACKEND="--backend llamacpp"
 UV=${UV:-uv}
 mkdir -p logs
 
 STACK=""
 cleanup() { [[ -n "$STACK" ]] && kill "$STACK" 2> /dev/null && wait "$STACK" 2> /dev/null; true; }
 trap cleanup EXIT
-wait_up() {  # give up after 30 s instead of hanging forever
-  for _ in $(seq 60); do curl -sf localhost:8000/health > /dev/null && return 0; sleep 0.5; done
+wait_up() {  # give up after 120 s (real models take a few seconds to load)
+  for _ in $(seq 240); do curl -sf localhost:8000/health > /dev/null && return 0; sleep 0.5; done
   echo "router did not start; see logs/" >&2
   exit 1
 }  # never leave routers/workers running, even when a run fails
@@ -36,12 +41,12 @@ for POLICY in $POLICIES; do
   if [[ -n "${WORKER_URLS:-}" ]]; then
     $UV run python -m llmserve.router --workers "$WORKER_URLS" --policy "$POLICY" > "logs/router-$POLICY.log" 2>&1 &
   else
-    $UV run python scripts/run_local.py --workers "$WORKERS" --policy "$POLICY" > "logs/run_local-$POLICY.log" 2>&1 &
+    $UV run python scripts/run_local.py --workers "$WORKERS" --policy "$POLICY" $LOCAL_BACKEND > "logs/run_local-$POLICY.log" 2>&1 &
   fi
   STACK=$!
   wait_up
   $UV run python -m llmserve.bench.loadgen --rps "$RPS" --duration "$DURATION" --num-prefixes "$PREFIXES" \
-    --model "$MODEL" --backend "$BACKEND" --policy "$POLICY" --label "phase2-$TAG-$POLICY-$BACKEND" | tail -1
+    --model "$MODEL" --backend "$BACKEND" --policy "$POLICY" --label "$PHASE-$TAG-$POLICY-$BACKEND" | tail -1
   cleanup
   STACK=""
   while curl -sf localhost:8000/health > /dev/null; do sleep 0.5; done
