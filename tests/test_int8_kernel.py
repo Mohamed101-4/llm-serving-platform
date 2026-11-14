@@ -34,7 +34,7 @@ def test_quantization_error_is_small():
     out = int8_matmul(x, w_q, scale)
     full = x @ w
     rel = (out - full).norm() / full.norm()
-    assert rel < 0.01  # per-channel INT8 on Gaussian weights: ~0.5% relative error
+    assert rel < 0.01  # per-channel INT8 on Gaussian weights: ~0.7% relative error
 
 
 def test_quantize_roundtrip_bounds():
