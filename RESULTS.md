@@ -195,3 +195,30 @@ on an Apple M3 host; torch 2.15.0+cpu, triton 3.9.0. Script: `scripts/check_int8
 **No speed numbers.** The interpreter runs the kernel in NumPy on the CPU, so timings would be
 meaningless. `scripts/gpu/bench_int8_kernel.py` times the kernel against fp16 `torch.matmul` and
 PyTorch dequantize+matmul on Qwen2.5-1.5B layer shapes, but **has not been run on an NVIDIA GPU.**
+
+## Real small model on a laptop: routing policies with llama.cpp
+
+**The first non-simulated numbers in this project.** 2 `llama-server` workers (llama.cpp build b12017,
+Metal) each serving Qwen2.5-0.5B-Instruct Q4_K_M with 4 slots, on an Apple M3 MacBook Pro with 8 GB.
+Poisson 2 RPS, 90 s, 8 shared system prompts (default workload), admission off. One run per policy,
+fresh workers (empty caches) for each. Commit `6374c31-dirty` (only README.md uncommitted).
+Files: `results/local-llm-2rps-{round_robin,least_load,prefix_aware}-llamacpp-*.json`. 172/172 OK in all three.
+
+| Metric | round_robin | least_load | prefix_aware | Δ prefix_aware vs round_robin |
+|---|---|---|---|---|
+| Throughput (req/s) | 1.879 | 1.88 | 1.86 | -1.0% |
+| Output tokens/s | 199.78 | 199.81 | 197.73 | -1.0% |
+| Latency p50 / p95 / p99 (ms) | 1740.94 / 4651.33 / 7546.36 | 1826.28 / 5261.39 / 6840.8 | 1544.62 / 4006.45 / 6431.16 | -11.3% / -13.9% / -14.8% |
+| TTFT p50 / p95 / p99 (ms) | 100.54 / 354.53 / 498.89 | 99.67 / 436.27 / 812.24 | 91.03 / 422.73 / 834.73 | -9.5% / +19.2% / +67.3% |
+| TPOT p50 / p95 (ms) | 18.74 / 27.88 | 19.91 / 27.56 | 15.73 / 25.33 | -16.1% / -9.1% |
+| Prefix-cache hit rate | 0.689 | 0.689 | 0.707 | +0.018 |
+| Requests per worker | 86 / 86 | 88 / 84 | 113 / 59 | |
+
+What this shows, with caveats:
+- On a real engine, `prefix_aware` cut median and tail end-to-end latency by 11 to 15% and median TTFT
+  by 9.5%, but its TTFT tail got worse (+67% p99): it sent 66% of requests to one worker (shared
+  prompts have a home worker), so that worker queued more often. Same trade-off as on the mock.
+- `least_load` brought no clear gain on 2 workers.
+- Only 172 requests per run and one run each, so differences of a few percent are within noise.
+  This is a small model on a laptop, **not a GPU server**; it validates the router against a real
+  inference engine, and the numbers should not be compared with GPU serving.
