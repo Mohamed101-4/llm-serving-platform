@@ -54,7 +54,14 @@ def main() -> None:
         procs.append(subprocess.Popen(router_cmd))
         wait_ready(f"http://127.0.0.1:{args.router_port}")
         print(f"router on :{args.router_port} ({args.policy}) -> {len(urls)} mock workers. Ctrl+C to stop.", flush=True)
-        while all(pr.poll() is None for pr in procs):
+        # Keep running while the router is up. A dead worker is the router's problem to
+        # handle (health checks + failover), so it must not take the whole stack down.
+        router, reported = procs[-1], set()
+        while router.poll() is None:
+            for i, pr in enumerate(procs[:-1]):
+                if pr.poll() is not None and i not in reported:
+                    print(f"worker {urls[i]} exited with code {pr.returncode}", flush=True)
+                    reported.add(i)
             time.sleep(0.5)
     except KeyboardInterrupt:
         pass
