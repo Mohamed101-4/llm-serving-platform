@@ -34,6 +34,7 @@ def main() -> None:
     p.add_argument("--base-port", type=int, default=8001)
     p.add_argument("--router-port", type=int, default=8000)
     p.add_argument("--policy", default="round_robin")
+    p.add_argument("--slo-ttft-ms", type=float, default=None, help="enable admission control")
     args = p.parse_args()
     # treat `kill`/SIGTERM like Ctrl+C so child servers are always cleaned up
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
@@ -46,8 +47,11 @@ def main() -> None:
             urls.append(f"http://127.0.0.1:{port}")
         for u in urls:
             wait_ready(u)
-        procs.append(subprocess.Popen([sys.executable, "-m", "llmserve.router", "--port", str(args.router_port),
-                                       "--workers", ",".join(urls), "--policy", args.policy]))
+        router_cmd = [sys.executable, "-m", "llmserve.router", "--port", str(args.router_port),
+                      "--workers", ",".join(urls), "--policy", args.policy]
+        if args.slo_ttft_ms:
+            router_cmd += ["--slo-ttft-ms", str(args.slo_ttft_ms)]
+        procs.append(subprocess.Popen(router_cmd))
         wait_ready(f"http://127.0.0.1:{args.router_port}")
         print(f"router on :{args.router_port} ({args.policy}) -> {len(urls)} mock workers. Ctrl+C to stop.", flush=True)
         while all(pr.poll() is None for pr in procs):
