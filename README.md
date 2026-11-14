@@ -4,7 +4,7 @@ A distributed LLM serving platform: an OpenAI-compatible router in front of
 multiple vLLM workers, with smart routing, overload protection and a benchmark
 harness that compares each improvement against a naive round-robin baseline.
 
-Status: **Phases 1 (baseline) and 2 (smart routing) done.** See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
+Status: **Phases 1 to 3 done** (baseline, smart routing, overload protection). See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
 which parts need a real NVIDIA GPU, and [RESULTS.md](RESULTS.md) for measured numbers.
 
 ## Architecture
@@ -14,7 +14,8 @@ flowchart LR
     LG[Load generator<br/>Poisson arrivals,<br/>shared prefixes] -->|POST /v1/chat/completions| R
     subgraph R[Router]
         P[Routing policy<br/>round_robin / least_load /<br/>prefix_aware]
-        S[Metrics scraper<br/>queue depth, KV cache]
+        A[Admission control<br/>TTFT estimate vs SLO,<br/>429 + Retry-After]
+        S[Metrics scraper<br/>+ health checks]
     end
     R -->|stream SSE| W1[Worker 1<br/>vLLM or mock]
     R --> W2[Worker 2]
@@ -53,6 +54,18 @@ flowchart LR
   bounded-load cap and let popular prefixes pile up: more cache hits, much worse TTFT near
   saturation (see RESULTS.md). The lesson: cache locality is only worth it while it doesn't
   create queueing.
+- **Admission control on estimated TTFT, not a fixed concurrency cap.** A fixed cap has to be
+  tuned per model and GPU. Instead the router estimates queueing delay from the requests ahead,
+  the worker's learned slot count, and an EWMA of service time, and rejects with 429 +
+  Retry-After only when no worker can meet the SLO. TTFT is the target because queueing shows
+  up there directly; total latency also includes decode time, which depends on how many tokens
+  the client asked for. Shedding early keeps served throughput at capacity while admitted
+  requests stay fast; queueing everything makes every user slow (see RESULTS.md, Phase 3).
+- **Failover only before the first byte.** Connection and read errors before any response is
+  sent are retried on another worker and the worker is marked unhealthy at once; the scraper
+  doubles as an active health check (2 failed scrapes = unhealthy, 1 success = healthy again).
+  Once tokens have streamed to the client, a retry would duplicate output, so the stream ends
+  with an error event instead.
 - **Mock worker instead of skipping tests.** The development machine has no NVIDIA
   GPU, so routing and admission logic is developed against a simulator that exposes
   vLLM's metric names. The router doesn't know which backend it's talking to. Mock
@@ -85,6 +98,16 @@ RPS=22 PREFIXES=64 TAG=64prefix-22rps ./scripts/compare_policies.sh
 
 ```bash
 uv run python scripts/report.py results/phase2-64prefix-22rps-round_robin-*.json results/phase2-64prefix-22rps-least_load-*.json results/phase2-64prefix-22rps-prefix_aware-*.json
+```
+
+Overload and failover benchmarks:
+
+```bash
+RPS=44 SLO=500 ./scripts/overload_bench.sh
+```
+
+```bash
+RPS=15 KILL_AT=20 ./scripts/failover_bench.sh
 ```
 
 On an NVIDIA GPU machine:
