@@ -103,6 +103,10 @@ flowchart LR
   Its controls go through the same code paths as real traffic: the load generator sends requests
   through the router, and "kill a worker" really crashes a mock worker process (`--chaos`), so the
   failover you see is the real health-check and retry logic.
+- **llama.cpp as a laptop backend.** `llama-server` speaks the same OpenAI API and exposes queue
+  metrics under `llamacpp:*` names, so the router only needed metric aliases to balance load across
+  real model processes on a Mac. It's for demos and a sanity check against a real engine, not a
+  substitute for vLLM on GPUs.
 - **Mock worker instead of skipping tests.** The development machine has no NVIDIA
   GPU, so routing and admission logic is developed against a simulator that exposes
   vLLM's metric names. The router doesn't know which backend it's talking to. Mock
@@ -169,6 +173,17 @@ Live control panel (then open http://127.0.0.1:8000/ui and drag the load slider)
 
 ```bash
 uv run python scripts/run_local.py --workers 4 --policy prefix_aware --slo-ttft-ms 500 --respawn-after 8
+```
+
+Real small model on a laptop (Apple Silicon): llama.cpp + Qwen2.5-0.5B-Instruct, about 500 MB,
+downloaded once to `~/.cache/llmserve`. The playground then gives real answers:
+
+```bash
+./scripts/local_llm/setup.sh
+```
+
+```bash
+uv run python scripts/run_local.py --backend llamacpp --workers 2 --policy prefix_aware --slo-ttft-ms 1500
 ```
 
 Overload and failover benchmarks:

@@ -5,18 +5,28 @@
     uv run python scripts/run_local.py --workers 4 --policy prefix_aware --slo-ttft-ms 500 --respawn-after 8
         # then open http://127.0.0.1:8000/ui (crashed workers come back after 8 s)
 
+    uv run python scripts/run_local.py --backend llamacpp --workers 2 --slo-ttft-ms 1500
+        # real model (Qwen2.5-0.5B via llama.cpp) on a laptop; run scripts/local_llm/setup.sh once first
+
 Ctrl+C stops everything.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import subprocess
 import sys
 import time
 
+from pathlib import Path
+
 import httpx
+
+CACHE = Path.home() / ".cache" / "llmserve"
+LLAMA_SERVER = os.environ.get("LLAMA_SERVER", str(CACHE / "llama.cpp" / "llama-b12017" / "llama-server"))
+LLAMA_MODEL = os.environ.get("LLAMA_MODEL", str(CACHE / "models" / "qwen2.5-0.5b-instruct-q4_k_m.gguf"))
 
 
 def wait_ready(url: str, timeout: float = 20.0) -> None:
@@ -42,6 +52,9 @@ def main() -> None:
                    help="extra workers used only for prefill (disaggregated prefill/decode)")
     p.add_argument("--prefill-interference", action="store_true",
                    help="mock workers model prefill stalling decode on a shared GPU")
+    p.add_argument("--backend", choices=["mock", "llamacpp"], default="mock",
+                   help="mock = simulated workers; llamacpp = real model via llama-server (see scripts/local_llm)")
+    p.add_argument("--llama-parallel", type=int, default=4, help="llama.cpp slots (concurrent sequences) per worker")
     p.add_argument("--respawn-after", type=float, default=None,
                    help="restart crashed workers after this many seconds; enables the dashboard's kill button")
     args = p.parse_args()
@@ -56,11 +69,18 @@ def main() -> None:
     try:
         for i in range(args.workers + args.prefill_workers):
             port = args.base_port + i
-            cmds.append([sys.executable, "-m", "llmserve.mock_worker", "--port", str(port)] + wflags)
+            if args.backend == "llamacpp":
+                if not Path(LLAMA_SERVER).exists() or not Path(LLAMA_MODEL).exists():
+                    sys.exit("llama.cpp or the model is missing; run scripts/local_llm/setup.sh first")
+                cmds.append([LLAMA_SERVER, "-m", LLAMA_MODEL, "--port", str(port), "--alias", Path(LLAMA_MODEL).stem,
+                             "--metrics", "--parallel", str(args.llama_parallel), "-c", str(2048 * args.llama_parallel),
+                             "--log-disable"])
+            else:
+                cmds.append([sys.executable, "-m", "llmserve.mock_worker", "--port", str(port)] + wflags)
             procs.append(subprocess.Popen(cmds[-1]))
             (urls if i < args.workers else prefill_urls).append(f"http://127.0.0.1:{port}")
         for u in urls + prefill_urls:
-            wait_ready(u)
+            wait_ready(u, timeout=120)  # loading a real model takes a few seconds
         router_cmd = [sys.executable, "-m", "llmserve.router", "--port", str(args.router_port),
                       "--workers", ",".join(urls), "--policy", args.policy]
         if args.slo_ttft_ms:
@@ -70,7 +90,8 @@ def main() -> None:
         procs.append(subprocess.Popen(router_cmd))
         wait_ready(f"http://127.0.0.1:{args.router_port}")
         pd = f" + {len(prefill_urls)} prefill" if prefill_urls else ""
-        print(f"router on :{args.router_port} ({args.policy}) -> {len(urls)} mock workers{pd}. Ctrl+C to stop.", flush=True)
+        kind = "llama.cpp (" + Path(LLAMA_MODEL).stem + ")" if args.backend == "llamacpp" else "mock"
+        print(f"router on :{args.router_port} ({args.policy}) -> {len(urls)} {kind} workers{pd}. Ctrl+C to stop.", flush=True)
         # Keep running while the router is up. A dead worker is the router's problem to
         # handle (health checks + failover), so it must not take the whole stack down.
         router, died = procs[-1], {}
