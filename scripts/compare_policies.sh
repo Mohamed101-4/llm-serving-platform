@@ -18,6 +18,15 @@ TAG=${TAG:-default}
 UV=${UV:-uv}
 mkdir -p logs
 
+STACK=""
+cleanup() { [[ -n "$STACK" ]] && kill "$STACK" 2> /dev/null && wait "$STACK" 2> /dev/null; true; }
+trap cleanup EXIT  # never leave routers/workers running, even when a run fails
+
+if curl -sf localhost:8000/health > /dev/null; then
+  echo "something is already serving on :8000; stop it first" >&2
+  exit 1
+fi
+
 for POLICY in $POLICIES; do
   if [[ -n "${WORKER_URLS:-}" ]]; then
     $UV run python -m llmserve.router --workers "$WORKER_URLS" --policy "$POLICY" > "logs/router-$POLICY.log" 2>&1 &
@@ -28,8 +37,8 @@ for POLICY in $POLICIES; do
   until curl -sf localhost:8000/health > /dev/null; do sleep 0.5; done
   $UV run python -m llmserve.bench.loadgen --rps "$RPS" --duration "$DURATION" --num-prefixes "$PREFIXES" \
     --model "$MODEL" --backend "$BACKEND" --policy "$POLICY" --label "phase2-$TAG-$POLICY-$BACKEND" | tail -1
-  kill "$STACK"
-  wait "$STACK" 2> /dev/null || true
+  cleanup
+  STACK=""
   while curl -sf localhost:8000/health > /dev/null; do sleep 0.5; done
   sleep 1
 done
