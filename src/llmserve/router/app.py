@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from .admission import AdmissionController
+from .discovery import DnsDiscovery
 from .policies import NoHealthyWorker, Policy, RequestInfo, Worker, make_policy
 from .scraper import MetricsScraper
 
@@ -35,8 +36,10 @@ def create_app(
     slo_ttft_ms: float | None = None,
     default_slots: int = 16,
     max_retries: int = 2,
+    worker_dns: str | None = None,
 ) -> FastAPI:
     workers = [Worker(url.rstrip("/")) for url in worker_urls]
+    discovery = DnsDiscovery(workers, worker_dns) if worker_dns else None
     pol = make_policy(policy) if isinstance(policy, str) else policy
     admission = AdmissionController(slo_ttft_ms, default_slots) if slo_ttft_ms else None
     client_holder: dict[str, httpx.AsyncClient] = {}
@@ -45,10 +48,14 @@ def create_app(
     async def lifespan(app: FastAPI):
         limits = httpx.Limits(max_connections=2000, max_keepalive_connections=500)
         client_holder["c"] = httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=2.0), limits=limits)
+        if discovery:
+            await discovery.start()
         scraper = MetricsScraper(workers, client_holder["c"], scrape_interval)
         scraper.start()
         yield
         await scraper.stop()
+        if discovery:
+            await discovery.stop()
         await client_holder["c"].aclose()
 
     app = FastAPI(title="llmserve router", lifespan=lifespan)
@@ -58,7 +65,26 @@ def create_app(
 
     @app.get("/health")
     async def health():
+        """Liveness: the router process is up."""
         return {"status": "ok", "policy": pol.name, "healthy_workers": sum(w.healthy for w in workers)}
+
+    @app.get("/ready")
+    async def ready():
+        """Readiness: only take traffic when at least one worker can serve it."""
+        n = sum(w.healthy for w in workers)
+        return JSONResponse({"ready": n > 0, "healthy_workers": n}, status_code=200 if n else 503)
+
+    @app.get("/scaling")
+    async def scaling():
+        """Autoscaling signal: total queue depth (router inflight + vLLM waiting) across workers.
+
+        KEDA's metrics-api scaler divides ``total_load`` by its target per replica.
+        """
+        alive = [w for w in workers if w.healthy]
+        inflight = sum(w.inflight for w in alive)
+        waiting = sum(w.metrics.get("waiting", 0.0) for w in alive)
+        return {"total_load": inflight + waiting, "inflight": inflight, "waiting": waiting,
+                "healthy_workers": len(alive), "load_per_worker": (inflight + waiting) / len(alive) if alive else 0.0}
 
     @app.get("/workers")
     async def list_workers():
@@ -144,13 +170,18 @@ def main() -> None:
     p = argparse.ArgumentParser(description="llmserve router")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8000)
-    p.add_argument("--workers", required=True, help="comma-separated worker base URLs")
+    p.add_argument("--workers", default="", help="comma-separated worker base URLs")
+    p.add_argument("--worker-dns", default=None, help="host:port to resolve for workers (k8s headless Service)")
     p.add_argument("--policy", default="round_robin")
     p.add_argument("--scrape-interval", type=float, default=0.25, help="seconds between /metrics scrapes")
     p.add_argument("--slo-ttft-ms", type=float, default=None, help="enable admission control with this TTFT target")
     p.add_argument("--default-slots", type=int, default=16, help="assumed concurrent sequences per worker until learned")
     args = p.parse_args()
-    app = create_app(args.workers.split(","), args.policy, args.scrape_interval, args.slo_ttft_ms, args.default_slots)
+    if not args.workers and not args.worker_dns:
+        p.error("give --workers or --worker-dns")
+    urls = [u for u in args.workers.split(",") if u]
+    app = create_app(urls, args.policy, args.scrape_interval, args.slo_ttft_ms, args.default_slots,
+                     worker_dns=args.worker_dns)
     # long keep-alive avoids races where a client reuses a connection the server just closed
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning", timeout_keep_alive=75)
 
