@@ -11,6 +11,6 @@ HOST="$(uname -m) host, Docker Desktop"
 docker run --rm -v "$PWD":/work -w /work -e TRITON_INTERPRET=1 -e GIT_COMMIT="$COMMIT" -e HOST_DESC="$HOST" \
   -e PIP_ROOT_USER_ACTION=ignore -e PIP_DISABLE_PIP_VERSION_CHECK=1 python:3.12-slim sh -c '
     pip install -q torch --index-url https://download.pytorch.org/whl/cpu &&
-    pip install -q triton numpy pytest &&
+    pip install -q triton numpy pytest httpx uvicorn &&
     PYTHONPATH=src python -m pytest -q -p no:cacheprovider tests/test_int8_kernel.py &&
     python scripts/check_int8_kernel.py'
