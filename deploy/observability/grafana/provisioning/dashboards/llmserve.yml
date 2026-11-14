@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: llmserve
+    folder: llmserve
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

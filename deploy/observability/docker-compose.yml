@@ -1,0 +1,63 @@
+# Local observability stack: router + 3 mock workers, Prometheus, Grafana, Jaeger.
+#
+#   docker compose -f deploy/observability/docker-compose.yml up -d --build
+#   Router :8000   Grafana :3000 (anonymous viewer)   Prometheus :9090   Jaeger UI :16686
+name: llmserve-obs
+
+x-worker: &worker
+  build: {context: ../..}
+  image: llmserve:dev
+  environment:
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+  mem_limit: 256m
+
+services:
+  worker-1:
+    <<: *worker
+    command: ["llmserve.mock_worker", "--host", "0.0.0.0", "--port", "8001"]
+  worker-2:
+    <<: *worker
+    command: ["llmserve.mock_worker", "--host", "0.0.0.0", "--port", "8001"]
+  worker-3:
+    <<: *worker
+    command: ["llmserve.mock_worker", "--host", "0.0.0.0", "--port", "8001"]
+
+  router:
+    <<: *worker
+    command:
+      - llmserve.router
+      - --host=0.0.0.0
+      - --port=8000
+      - --workers=http://worker-1:8001,http://worker-2:8001,http://worker-3:8001
+      - --policy=prefix_aware
+      - --slo-ttft-ms=500
+    ports: ["8000:8000"]
+    depends_on: [worker-1, worker-2, worker-3, jaeger]
+    mem_limit: 512m
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=1d"]
+    volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+    mem_limit: 512m
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/llmserve-dashboard.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+    mem_limit: 384m
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.66.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports: ["16686:16686", "4318:4318"]
+    mem_limit: 512m

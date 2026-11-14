@@ -4,7 +4,7 @@ A distributed LLM serving platform: an OpenAI-compatible router in front of
 multiple vLLM workers, with smart routing, overload protection and a benchmark
 harness that compares each improvement against a naive round-robin baseline.
 
-Status: **Phases 1 to 4 done** (baseline, smart routing, overload protection, Kubernetes). Kubernetes details are in [docs/K8S.md](docs/K8S.md). See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
+Status: **Phases 1 to 5 done** (baseline, smart routing, overload protection, Kubernetes, observability). See [docs/K8S.md](docs/K8S.md) and [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md). See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
 which parts need a real NVIDIA GPU, and [RESULTS.md](RESULTS.md) for measured numbers.
 
 ## Architecture
@@ -23,6 +23,9 @@ flowchart LR
     W1 -. /metrics .-> S
     W2 -. /metrics .-> S
     LG --> J[(results/*.json)]
+    R -. /metrics .-> PR[Prometheus] --> G[Grafana]
+    R -. OTLP traces .-> JG[Jaeger]
+    W1 -. OTLP traces .-> JG
 ```
 
 - **Router** (`src/llmserve/router`): FastAPI proxy. Picks a worker per request
@@ -71,6 +74,11 @@ flowchart LR
   the router's queue-depth signal, not GPU utilisation: vLLM keeps the GPU busy even at light
   load, and queue depth is what users feel as latency. KubeRay is provided for GPU clusters
   (Ray handles GPU placement and node autoscaling); the plain-Deployment overlay is the simpler option.
+- **Observability: metrics on decisions, traces on stages.** Prometheus counters record *why*
+  each request went where it did (policy, admission redirect, failover) and how it ended;
+  histograms give TTFT and latency percentiles. Traces answer "where did this slow request
+  spend its time?": router spans plus worker queue/prefill/decode spans in one trace via W3C
+  `traceparent`, which vLLM's own tracing also reads.
 - **Mock worker instead of skipping tests.** The development machine has no NVIDIA
   GPU, so routing and admission logic is developed against a simulator that exposes
   vLLM's metric names. The router doesn't know which backend it's talking to. Mock
@@ -113,6 +121,12 @@ Kubernetes on kind (KEDA autoscaling demo):
 
 ```bash
 uv run python scripts/k8s_autoscale_demo.py --rps 25 --duration 120 --cooldown 120
+```
+
+Observability stack (router, mock workers, Prometheus, Grafana on :3000, Jaeger on :16686):
+
+```bash
+docker compose -f deploy/observability/docker-compose.yml up -d --build
 ```
 
 Overload and failover benchmarks:
