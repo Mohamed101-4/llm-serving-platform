@@ -65,3 +65,45 @@ With only 8 prefixes every worker's cache already holds all of them, so prefix r
   bounded-load cap let popular prefixes pile onto one worker (301 to 369 requests per worker vs 327 to 345 for v2).
 - All Phase 2 numbers are from the **mock worker**. Real vLLM prefix caching saves more prefill time
   on long prompts, so the GPU result may differ in either direction. **GPU comparison not run yet.**
+
+## Phase 3: overload protection (mock workers)
+
+### 2x overload: admission control off vs on
+
+4 mock workers (about 21.5 req/s capacity), offered Poisson **44 RPS** for 60 s, 64 prefixes, seed 0,
+`prefix_aware` routing, TTFT SLO 500 ms. Commit `36e8f2b`, Apple M3 8 GB.
+
+| Metric | Baseline (no admission) | New (admission, SLO 500 ms) | Improvement | Hardware | Workload config | Commit |
+|---|---|---|---|---|---|---|
+| TTFT p50 (ms) | 27562.08 | 280.19 | -99.0% | Apple M3 8 GB, 4 mock workers | 44 RPS (2x capacity), 60 s, 64 prefixes, seed 0 | 36e8f2b |
+| TTFT p95 (ms) | 53772.19 | 849.31 | -98.4% | same | same | same |
+| TTFT p99 (ms) | 56900.21 | 1127.52 | -98.0% | same | same | same |
+| Latency p50 (ms) | 30473.46 | 2759.68 | -90.9% | same | same | same |
+| Latency p99 (ms) | 60441.80 | 8551.42 | -85.9% | same | same | same |
+| Throughput (req/s) | 21.51 | 21.42 | -0.4% | same | same | same |
+| Requests OK / 429 / failed | 2693 / 0 / 0 | 1412 / 1281 / 0 | 48% shed fast | same | same | same |
+
+Files: `results/phase3-overload-44rps-no-admission-mock-20261113-235608.json`,
+`results/phase3-overload-44rps-admission-mock-20261113-235719.json`
+
+Without admission control the queue grows for the whole run, so a request waits up to ~57 s for its
+first token. With it, served throughput is unchanged and the excess gets an immediate 429 + Retry-After.
+**The SLO is not held exactly:** admitted TTFT p99 was 1128 ms against a 500 ms target (p50 280 ms).
+The estimator uses EWMA service times and a slot count, and it lags bursts. A tighter p99 would need a
+safety margin on the estimate or a lower configured SLO.
+
+### Worker killed mid-load
+
+4 mock workers, Poisson 15 RPS for 60 s, `prefix_aware`; worker :8002 SIGKILLed at t=20 s. Commit `bb446bf`.
+
+| Metric | Value |
+|---|---|
+| Requests OK / sent | 861 / 870 |
+| Failed requests | 9, all started 17.8 to 19.4 s and cut off mid-stream on the killed worker |
+| Requests sent after the kill (t > 20.5 s) | 562 / 562 OK |
+| Latency p99 (ms) | 6986.16 |
+
+File: `results/phase3-failover-kill-at-20s-mock-20261114-000209.json`.
+Requests already streaming tokens can't be retried transparently; everything else fails over.
+Two earlier failover runs were discarded because of benchmark bugs (the launcher tore down the router
+when a worker died; loadgen counted mid-stream error events as success). Both are fixed in the commits above.
