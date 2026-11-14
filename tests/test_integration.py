@@ -38,10 +38,10 @@ def test_streaming_relays_sse(serve):
     assert len(lines) == 5 + 2  # 5 tokens, final chunk, [DONE]
 
 
-def test_dead_worker_returns_502(serve):
+def test_only_worker_dead_returns_503(serve):
     router = serve(router_app(["http://127.0.0.1:9"]))  # nothing listens on port 9
     r = httpx.post(f"{router.url}/v1/chat/completions", json=body(False), timeout=10)
-    assert r.status_code == 502
+    assert r.status_code == 503  # marked unhealthy on the failed connect, none left to retry on
 
 
 def test_loadgen_end_to_end(serve):
