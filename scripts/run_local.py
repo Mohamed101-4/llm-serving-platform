@@ -55,6 +55,8 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)  # a second signal must not abort cleanup
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         for pr in procs:
             pr.terminate()
         for pr in procs:
