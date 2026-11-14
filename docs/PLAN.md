@@ -37,7 +37,7 @@ vLLM GPU workers, CUDA, and Triton kernels **cannot run on this Mac**. So:
 | 3 Overload protection | yes (fully testable) | optional |
 | 4 Kubernetes / KubeRay on kind | yes (mock workers in kind) | multi-GPU cluster docs only |
 | 5 Observability | yes | no |
-| 6 Disaggregated prefill/decode | design only | **yes, 2+ GPUs required** |
+| 6 Disaggregated prefill/decode | yes, mock workers model prefill-decode interference (done) | **yes, 2+ GPUs required** (script written, not run) |
 | 7 Triton kernel | no (Triton needs NVIDIA) | **yes** |
 
 Phases 6 and 7 will be marked "not benchmarked" unless a GPU run actually happens.

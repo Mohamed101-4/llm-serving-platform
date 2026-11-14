@@ -5,7 +5,12 @@ It models the effects routing and admission care about:
     extra requests wait in a queue (``num_requests_waiting``),
   * a bounded KV cache measured in tokens (``gpu_cache_usage_perc``),
   * a block-level prefix cache: prompt blocks seen recently skip prefill,
-  * decode steps that slow down as the batch grows.
+  * decode steps that slow down as the batch grows,
+  * optionally (``prefill_interference``), prefill and decode sharing one GPU: a prefill
+    occupies the GPU and stalls every running sequence's next decode step, which is the
+    interference that disaggregated prefill/decode removes,
+  * prefill-only and decode-only requests using vLLM's P/D ``kv_transfer_params`` protocol,
+    with a simulated KV-cache transfer cost on the decode side.
 
 The numbers it produces are NOT GPU performance numbers. They exist so the
 router can be developed and tested on a laptop.
@@ -47,6 +52,8 @@ class SimConfig:
     prefill_ms_per_token: float = 0.08
     decode_base_ms: float = 12.0
     decode_ms_per_seq: float = 0.8
+    prefill_interference: bool = False  # off by default so Phase 1-5 results stay reproducible
+    kv_transfer_ms_per_token: float = 0.005  # KV copy prefill->decode worker (~3 ms for 600 tokens)
 
 
 @dataclass
@@ -90,6 +97,7 @@ class SimWorker:
         self.stats = SimStats()
         self.prefix_cache = PrefixCache(self.config.prefix_cache_blocks)
         self._cond = asyncio.Condition()
+        self._gpu_free_at = 0.0  # loop time when the current prefill (if any) finishes
 
     def _can_admit(self, kv_tokens: int) -> bool:
         c = self.config
@@ -98,17 +106,8 @@ class SimWorker:
             and self.stats.kv_used_tokens + kv_tokens <= c.kv_capacity_tokens
         )
 
-    async def generate(self, prompt: str, max_tokens: int, trace_ctx=None):
-        """Async generator yielding (token_text) one per decode step.
-
-        Emits worker.queue / worker.prefill / worker.decode spans under ``trace_ctx``,
-        mirroring the per-request stages vLLM reports when its tracing is enabled.
-        """
-        c = self.config
-        tr = trace.get_tracer("llmserve.mock_worker")
-        span = tr.start_span("worker.queue", context=trace_ctx)
-        prompt_tokens = count_tokens(prompt)
-        kv_tokens = min(prompt_tokens + max_tokens, c.kv_capacity_tokens)
+    async def _acquire(self, kv_tokens: int, trace_ctx) -> None:
+        span = trace.get_tracer("llmserve.mock_worker").start_span("worker.queue", context=trace_ctx)
         self.stats.requests_total += 1
         self.stats.waiting += 1
         try:
@@ -119,22 +118,76 @@ class SimWorker:
                 self.stats.kv_used_tokens += kv_tokens
         except BaseException:
             self.stats.waiting -= 1
-            span.end()
             raise
-        span.end()
+        finally:
+            span.end()
+
+    async def _release(self, kv_tokens: int) -> None:
+        async with self._cond:
+            self.stats.running -= 1
+            self.stats.kv_used_tokens -= kv_tokens
+            self._cond.notify_all()
+
+    async def _prefill(self, prompt: str, trace_ctx) -> tuple[int, int]:
+        """Run prefill (with prefix caching). Returns (prompt_tokens, cached_tokens)."""
+        c = self.config
+        prompt_tokens = count_tokens(prompt)
+        hit_blocks = self.prefix_cache.lookup_and_insert(block_hashes(prompt))
+        cached = hit_blocks * BLOCK_TOKENS
+        self.stats.prefix_queries += prompt_tokens
+        self.stats.prefix_hits += cached
+        self.stats.prompt_tokens_total += prompt_tokens
+        dur = max(1, prompt_tokens - cached) * c.prefill_ms_per_token / 1000
+        with trace.get_tracer("llmserve.mock_worker").start_as_current_span(
+                "worker.prefill", context=trace_ctx,
+                attributes={"llm.prompt_tokens": prompt_tokens, "llm.prefix_cache_hit_tokens": cached}):
+            if c.prefill_interference:
+                # Prefills take the whole GPU one at a time; decode steps wait for them.
+                now = asyncio.get_running_loop().time()
+                self._gpu_free_at = max(now, self._gpu_free_at) + dur
+                await asyncio.sleep(self._gpu_free_at - now)
+            else:
+                await asyncio.sleep(dur)
+        return prompt_tokens, cached
+
+    async def prefill_only(self, prompt: str, trace_ctx=None) -> dict:
+        """Prefill on this worker and hand the KV cache to a decode worker (P/D disaggregation)."""
+        prompt_tokens = count_tokens(prompt)
+        kv = min(prompt_tokens, self.config.kv_capacity_tokens)
+        await self._acquire(kv, trace_ctx)
         try:
-            hashes = block_hashes(prompt)
-            hit_blocks = self.prefix_cache.lookup_and_insert(hashes)
-            self.stats.prefix_queries += prompt_tokens
-            self.stats.prefix_hits += hit_blocks * BLOCK_TOKENS
-            self.stats.prompt_tokens_total += prompt_tokens
-            uncached = max(1, prompt_tokens - hit_blocks * BLOCK_TOKENS)
-            with tr.start_as_current_span("worker.prefill", context=trace_ctx, attributes={
-                    "llm.prompt_tokens": prompt_tokens, "llm.prefix_cache_hit_tokens": hit_blocks * BLOCK_TOKENS}):
-                await asyncio.sleep(uncached * c.prefill_ms_per_token / 1000)
+            prompt_tokens, cached = await self._prefill(prompt, trace_ctx)
+        finally:
+            await self._release(kv)
+        return {"do_remote_prefill": True, "do_remote_decode": False, "prompt_tokens": prompt_tokens,
+                "cached_tokens": cached, "remote_engine_id": id(self), "remote_block_ids": None}
+
+    async def generate(self, prompt: str, max_tokens: int, trace_ctx=None, kv_transfer: dict | None = None):
+        """Async generator yielding (token_text) one per decode step.
+
+        With ``kv_transfer`` (from a prefill worker), prefill is replaced by a KV-cache transfer.
+        Emits worker.queue / worker.prefill (or worker.kv_transfer) / worker.decode spans under
+        ``trace_ctx``, mirroring the per-request stages vLLM reports when its tracing is enabled.
+        """
+        c = self.config
+        tr = trace.get_tracer("llmserve.mock_worker")
+        prompt_tokens = int(kv_transfer.get("prompt_tokens") or 0) if kv_transfer else count_tokens(prompt)
+        prompt_tokens = prompt_tokens or count_tokens(prompt)
+        kv_tokens = min(prompt_tokens + max_tokens, c.kv_capacity_tokens)
+        await self._acquire(kv_tokens, trace_ctx)
+        try:
+            if kv_transfer:
+                with tr.start_as_current_span("worker.kv_transfer", context=trace_ctx,
+                                              attributes={"llm.prompt_tokens": prompt_tokens}):
+                    await asyncio.sleep(prompt_tokens * c.kv_transfer_ms_per_token / 1000)
+            else:
+                await self._prefill(prompt, trace_ctx)
             span = tr.start_span("worker.decode", context=trace_ctx, attributes={"llm.max_tokens": max_tokens})
+            loop = asyncio.get_running_loop()
             try:
                 for i in range(max_tokens):
+                    if c.prefill_interference and loop.time() < self._gpu_free_at:
+                        await asyncio.sleep(self._gpu_free_at - loop.time())  # stalled behind a prefill
                     step_ms = c.decode_base_ms + c.decode_ms_per_seq * self.stats.running
                     await asyncio.sleep(step_ms / 1000)
                     self.stats.generation_tokens_total += 1
@@ -142,10 +195,7 @@ class SimWorker:
             finally:
                 span.end()
         finally:
-            async with self._cond:
-                self.stats.running -= 1
-                self.stats.kv_used_tokens -= kv_tokens
-                self._cond.notify_all()
+            await self._release(kv_tokens)
 
     def prometheus_text(self, model: str) -> str:
         s, c = self.stats, self.config
