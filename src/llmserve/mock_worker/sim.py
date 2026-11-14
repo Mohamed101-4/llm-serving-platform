@@ -19,6 +19,8 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 
+from opentelemetry import trace
+
 CHARS_PER_TOKEN = 4
 BLOCK_TOKENS = 16
 
@@ -96,9 +98,15 @@ class SimWorker:
             and self.stats.kv_used_tokens + kv_tokens <= c.kv_capacity_tokens
         )
 
-    async def generate(self, prompt: str, max_tokens: int):
-        """Async generator yielding (token_text) one per decode step."""
+    async def generate(self, prompt: str, max_tokens: int, trace_ctx=None):
+        """Async generator yielding (token_text) one per decode step.
+
+        Emits worker.queue / worker.prefill / worker.decode spans under ``trace_ctx``,
+        mirroring the per-request stages vLLM reports when its tracing is enabled.
+        """
         c = self.config
+        tr = trace.get_tracer("llmserve.mock_worker")
+        span = tr.start_span("worker.queue", context=trace_ctx)
         prompt_tokens = count_tokens(prompt)
         kv_tokens = min(prompt_tokens + max_tokens, c.kv_capacity_tokens)
         self.stats.requests_total += 1
@@ -111,7 +119,9 @@ class SimWorker:
                 self.stats.kv_used_tokens += kv_tokens
         except BaseException:
             self.stats.waiting -= 1
+            span.end()
             raise
+        span.end()
         try:
             hashes = block_hashes(prompt)
             hit_blocks = self.prefix_cache.lookup_and_insert(hashes)
@@ -119,12 +129,18 @@ class SimWorker:
             self.stats.prefix_hits += hit_blocks * BLOCK_TOKENS
             self.stats.prompt_tokens_total += prompt_tokens
             uncached = max(1, prompt_tokens - hit_blocks * BLOCK_TOKENS)
-            await asyncio.sleep(uncached * c.prefill_ms_per_token / 1000)
-            for i in range(max_tokens):
-                step_ms = c.decode_base_ms + c.decode_ms_per_seq * self.stats.running
-                await asyncio.sleep(step_ms / 1000)
-                self.stats.generation_tokens_total += 1
-                yield f"tok{i} "
+            with tr.start_as_current_span("worker.prefill", context=trace_ctx, attributes={
+                    "llm.prompt_tokens": prompt_tokens, "llm.prefix_cache_hit_tokens": hit_blocks * BLOCK_TOKENS}):
+                await asyncio.sleep(uncached * c.prefill_ms_per_token / 1000)
+            span = tr.start_span("worker.decode", context=trace_ctx, attributes={"llm.max_tokens": max_tokens})
+            try:
+                for i in range(max_tokens):
+                    step_ms = c.decode_base_ms + c.decode_ms_per_seq * self.stats.running
+                    await asyncio.sleep(step_ms / 1000)
+                    self.stats.generation_tokens_total += 1
+                    yield f"tok{i} "
+            finally:
+                span.end()
         finally:
             async with self._cond:
                 self.stats.running -= 1
