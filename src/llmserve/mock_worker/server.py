@@ -51,12 +51,30 @@ def create_app(config: SimConfig | None = None, model: str = "mock-model") -> Fa
         created = int(time.time())
         root = tr.start_span("worker.request", kind=SpanKind.SERVER, context=extract(dict(request.headers)))
         ctx = trace.set_span_in_context(root)
+        # vLLM's P/D disaggregation protocol (NixlConnector / toy proxy): a prefill request carries
+        # do_remote_decode and returns kv_transfer_params, which the proxy passes to the decode worker.
+        kvp = body.get("kv_transfer_params") or {}
+        if kvp.get("do_remote_decode"):
+            root.set_attribute("llm.pd_role", "prefill")
+            try:
+                params = await worker.prefill_only(prompt, ctx)
+            finally:
+                root.end()
+            return JSONResponse({
+                "id": rid, "object": "chat.completion", "created": created, "model": model,
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": ""}, "finish_reason": "length"}],
+                "usage": {"prompt_tokens": params["prompt_tokens"], "completion_tokens": 0},
+                "kv_transfer_params": params,
+            })
+        kv_transfer = kvp if kvp.get("do_remote_prefill") else None
+        if kv_transfer:
+            root.set_attribute("llm.pd_role", "decode")
 
         if body.get("stream"):
 
             async def sse():
                 try:
-                    async for tok in worker.generate(prompt, max_tokens, ctx):
+                    async for tok in worker.generate(prompt, max_tokens, ctx, kv_transfer):
                         chunk = {
                             "id": rid, "object": "chat.completion.chunk", "created": created, "model": model,
                             "choices": [{"index": 0, "delta": {"content": tok}, "finish_reason": None}],
@@ -74,7 +92,7 @@ def create_app(config: SimConfig | None = None, model: str = "mock-model") -> Fa
             return StreamingResponse(sse(), media_type="text/event-stream")
 
         try:
-            text = "".join([t async for t in worker.generate(prompt, max_tokens, ctx)])
+            text = "".join([t async for t in worker.generate(prompt, max_tokens, ctx, kv_transfer)])
         finally:
             root.end()
         return JSONResponse({
@@ -93,8 +111,13 @@ def main() -> None:
     p.add_argument("--model", default="mock-model")
     p.add_argument("--max-num-seqs", type=int, default=SimConfig.max_num_seqs)
     p.add_argument("--kv-capacity-tokens", type=int, default=SimConfig.kv_capacity_tokens)
+    p.add_argument("--prefill-interference", action="store_true",
+                   help="prefills stall decode steps on the same worker (shared GPU)")
+    p.add_argument("--kv-transfer-ms-per-token", type=float, default=SimConfig.kv_transfer_ms_per_token)
     args = p.parse_args()
-    cfg = SimConfig(max_num_seqs=args.max_num_seqs, kv_capacity_tokens=args.kv_capacity_tokens)
+    cfg = SimConfig(max_num_seqs=args.max_num_seqs, kv_capacity_tokens=args.kv_capacity_tokens,
+                    prefill_interference=args.prefill_interference,
+                    kv_transfer_ms_per_token=args.kv_transfer_ms_per_token)
     uvicorn.run(create_app(cfg, args.model), host=args.host, port=args.port, log_level="warning")
 
 
