@@ -11,9 +11,16 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from opentelemetry import trace
+from opentelemetry.propagate import extract, inject
+from opentelemetry.trace import SpanKind, Status, StatusCode
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+from ..tracing import setup_tracing, tracer
 
 from .admission import AdmissionController
 from .discovery import DnsDiscovery
+from .metrics import RouterMetrics
 from .policies import NoHealthyWorker, Policy, RequestInfo, Worker, make_policy
 from .scraper import MetricsScraper
 
@@ -42,6 +49,9 @@ def create_app(
     discovery = DnsDiscovery(workers, worker_dns) if worker_dns else None
     pol = make_policy(policy) if isinstance(policy, str) else policy
     admission = AdmissionController(slo_ttft_ms, default_slots) if slo_ttft_ms else None
+    metrics = RouterMetrics(lambda: workers, admission)
+    setup_tracing("llmserve-router")
+    tr = tracer("llmserve.router")
     client_holder: dict[str, httpx.AsyncClient] = {}
 
     @asynccontextmanager
@@ -58,10 +68,11 @@ def create_app(
             await discovery.stop()
         await client_holder["c"].aclose()
 
-    app = FastAPI(title="llmserve router", lifespan=lifespan)
+    app = FastAPI(title="llmserve router", lifespan=lifespan, telemetry={"tracing": False})  # our own stage spans replace per-endpoint ones
     app.state.workers = workers
     app.state.policy = pol
     app.state.admission = admission
+    app.state.metrics = metrics
 
     @app.get("/health")
     async def health():
@@ -94,6 +105,10 @@ def create_app(
             for w in workers
         ]
 
+    @app.get("/metrics")
+    async def metrics_endpoint():
+        return Response(generate_latest(metrics.registry), media_type=CONTENT_TYPE_LATEST)
+
     @app.post("/v1/chat/completions")
     async def chat(request: Request):
         body = await request.json()
@@ -101,64 +116,123 @@ def create_app(
         stream = bool(body.get("stream"))
         client = client_holder["c"]
         excluded: set[str] = set()
+        root = tr.start_span("llmserve.request", kind=SpanKind.SERVER,
+                             context=extract(dict(request.headers)),
+                             attributes={"llm.max_tokens": info.max_tokens, "llm.stream": stream, "llm.policy": pol.name})
+        root_ctx = trace.set_span_in_context(root)
+
+        def reject(status: int, message: str, headers: dict | None = None, worker_label: str = "none"):
+            metrics.requests.labels(worker_label, str(status)).inc()
+            root.set_attribute("http.status_code", status)
+            root.set_status(Status(StatusCode.ERROR, message))
+            root.end()
+            return error(status, message, headers)
 
         # Pick a worker, admit or reject, and connect. Retry on another worker if the
         # chosen one is down; nothing has been sent to the client yet, so this is safe.
         for attempt in range(max_retries + 1):
             candidates = [w for w in workers if w.url not in excluded]
-            try:
-                worker = pol.choose(info, candidates)
-            except NoHealthyWorker:
-                return error(503, "no healthy workers")
-            queued = False
-            if admission:
-                d = admission.decide(worker, candidates)
-                if not d.admitted:
-                    return error(429, f"overloaded: estimated TTFT {d.est_ttft_ms:.0f} ms exceeds SLO "
-                                      f"{admission.slo_ttft_ms:.0f} ms", {"Retry-After": str(d.retry_after_s)})
-                worker = d.worker
-                queued = admission.queue_ahead(worker) >= 0
+            with tr.start_as_current_span("route", context=root_ctx) as route_span:
+                try:
+                    worker = pol.choose(info, candidates)
+                except NoHealthyWorker:
+                    return reject(503, "no healthy workers")
+                reason = "failover" if attempt else "policy"
+                queued = False
+                if admission:
+                    d = admission.decide(worker, candidates)
+                    route_span.set_attribute("admission.est_ttft_ms", d.est_ttft_ms)
+                    route_span.set_attribute("admission.admitted", d.admitted)
+                    if not d.admitted:
+                        metrics.rejections.inc()
+                        return reject(429, f"overloaded: estimated TTFT {d.est_ttft_ms:.0f} ms exceeds SLO "
+                                           f"{admission.slo_ttft_ms:.0f} ms", {"Retry-After": str(d.retry_after_s)})
+                    if d.worker is not worker:
+                        reason = "admission_redirect"
+                    worker = d.worker
+                    queued = admission.queue_ahead(worker) >= 0
+                route_span.set_attribute("route.worker", worker.url)
+                route_span.set_attribute("route.reason", reason)
+            metrics.routing.labels(pol.name, worker.url, reason).inc()
             worker.inflight += 1
             start = time.perf_counter()
+            up_span = tr.start_span("upstream", kind=SpanKind.CLIENT, context=root_ctx,
+                                    attributes={"server.address": worker.url, "attempt": attempt})
+            up_ctx = trace.set_span_in_context(up_span)
+            wait_span = tr.start_span("wait_first_token", context=up_ctx)
+            fwd_headers: dict[str, str] = {}
+            inject(fwd_headers, context=up_ctx)
             try:
                 upstream = await client.send(
-                    client.build_request("POST", f"{worker.url}/v1/chat/completions", json=body), stream=True)
+                    client.build_request("POST", f"{worker.url}/v1/chat/completions", json=body, headers=fwd_headers),
+                    stream=True)
                 if not stream:
                     await upstream.aread()  # read fully here so a mid-response failure can still be retried
                 break
-            except WORKER_DOWN:
+            except WORKER_DOWN as e:
                 worker.inflight -= 1
                 worker.healthy = False  # passive health check; the scraper revives it when it's back
                 excluded.add(worker.url)
+                metrics.worker_failures.labels(worker.url, "connect").inc()
+                for sp in (wait_span, up_span):
+                    sp.record_exception(e)
+                    sp.set_status(Status(StatusCode.ERROR, "worker down"))
+                    sp.end()
                 if attempt == max_retries:
-                    return error(502, "workers failed")
+                    return reject(502, "workers failed")
 
         headers = {"x-llmserve-worker": worker.url}
+        root.set_attribute("llm.worker", worker.url)
 
-        def finish(ttft: float | None) -> None:
+        def finish(ttft: float | None, failed: bool = False) -> None:
             worker.inflight -= 1
-            if admission and upstream.status_code == 200:
-                admission.record(worker, time.perf_counter() - start, ttft, queued)
+            latency = time.perf_counter() - start
+            code = "stream_error" if failed else str(upstream.status_code)
+            metrics.requests.labels(worker.url, code).inc()
+            if upstream.status_code == 200 and not failed:
+                metrics.latency.labels(worker.url).observe(latency)
+                if ttft is not None:
+                    metrics.ttft.labels(worker.url).observe(ttft)
+                if admission:
+                    admission.record(worker, latency, ttft, queued)
+            root.set_attribute("http.status_code", upstream.status_code)
+            if ttft is not None:
+                root.set_attribute("llm.ttft_ms", ttft * 1000)
+            if failed:
+                root.set_status(Status(StatusCode.ERROR, "worker failed mid-stream"))
+            up_span.end()
+            root.end()
 
         if not stream:
+            wait_span.end()
             finish(None)
             return Response(upstream.content, status_code=upstream.status_code,
                             media_type=upstream.headers.get("content-type"), headers=headers)
 
         async def relay():
             ttft = None
+            failed = False
+            stream_span = None
             try:
                 async for chunk in upstream.aiter_raw():
                     if ttft is None:
                         ttft = time.perf_counter() - start
+                        wait_span.end()
+                        stream_span = tr.start_span("stream", context=up_ctx)
                     yield chunk
             except WORKER_DOWN:
                 # Tokens already reached the client, so we can't transparently retry.
+                failed = True
                 worker.healthy = False
+                metrics.worker_failures.labels(worker.url, "stream").inc()
                 yield f"data: {json.dumps({'error': {'message': 'worker failed mid-stream'}})}\n\n".encode()
             finally:
                 await upstream.aclose()
-                finish(ttft)
+                if stream_span is None:
+                    wait_span.end()
+                else:
+                    stream_span.end()
+                finish(ttft, failed)
 
         return StreamingResponse(relay(), status_code=upstream.status_code,
                                  media_type=upstream.headers.get("content-type", "text/event-stream"), headers=headers)

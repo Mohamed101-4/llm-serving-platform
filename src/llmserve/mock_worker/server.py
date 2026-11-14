@@ -11,6 +11,11 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
+from opentelemetry import trace
+from opentelemetry.propagate import extract
+from opentelemetry.trace import SpanKind
+
+from ..tracing import setup_tracing
 from .sim import SimConfig, SimWorker
 
 
@@ -19,8 +24,10 @@ def prompt_from_messages(messages: list[dict]) -> str:
 
 
 def create_app(config: SimConfig | None = None, model: str = "mock-model") -> FastAPI:
-    app = FastAPI(title="llmserve mock worker")
+    app = FastAPI(title="llmserve mock worker", telemetry={"tracing": False})  # our own stage spans replace per-endpoint ones
     worker = SimWorker(config or SimConfig())
+    setup_tracing("llmserve-mock-worker")
+    tr = trace.get_tracer("llmserve.mock_worker")
     app.state.worker = worker
 
     @app.get("/health")
@@ -42,26 +49,34 @@ def create_app(config: SimConfig | None = None, model: str = "mock-model") -> Fa
         max_tokens = int(body.get("max_tokens") or 64)
         rid = f"chatcmpl-{uuid.uuid4().hex[:12]}"
         created = int(time.time())
+        root = tr.start_span("worker.request", kind=SpanKind.SERVER, context=extract(dict(request.headers)))
+        ctx = trace.set_span_in_context(root)
 
         if body.get("stream"):
 
             async def sse():
-                async for tok in worker.generate(prompt, max_tokens):
-                    chunk = {
+                try:
+                    async for tok in worker.generate(prompt, max_tokens, ctx):
+                        chunk = {
+                            "id": rid, "object": "chat.completion.chunk", "created": created, "model": model,
+                            "choices": [{"index": 0, "delta": {"content": tok}, "finish_reason": None}],
+                        }
+                        yield f"data: {json.dumps(chunk)}\n\n"
+                    done = {
                         "id": rid, "object": "chat.completion.chunk", "created": created, "model": model,
-                        "choices": [{"index": 0, "delta": {"content": tok}, "finish_reason": None}],
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "length"}],
                     }
-                    yield f"data: {json.dumps(chunk)}\n\n"
-                done = {
-                    "id": rid, "object": "chat.completion.chunk", "created": created, "model": model,
-                    "choices": [{"index": 0, "delta": {}, "finish_reason": "length"}],
-                }
-                yield f"data: {json.dumps(done)}\n\n"
-                yield "data: [DONE]\n\n"
+                    yield f"data: {json.dumps(done)}\n\n"
+                    yield "data: [DONE]\n\n"
+                finally:
+                    root.end()
 
             return StreamingResponse(sse(), media_type="text/event-stream")
 
-        text = "".join([t async for t in worker.generate(prompt, max_tokens)])
+        try:
+            text = "".join([t async for t in worker.generate(prompt, max_tokens, ctx)])
+        finally:
+            root.end()
         return JSONResponse({
             "id": rid, "object": "chat.completion", "created": created, "model": model,
             "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "length"}],

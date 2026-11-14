@@ -12,6 +12,10 @@ spec:
   template:
     metadata:
       labels: {app: llmserve-router}
+      annotations:   # picked up by Prometheus' kubernetes-pods scrape config
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: /metrics
     spec:
       containers:
         - name: router
