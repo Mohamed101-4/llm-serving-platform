@@ -8,6 +8,7 @@ Ctrl+C stops everything.
 from __future__ import annotations
 
 import argparse
+import signal
 import subprocess
 import sys
 import time
@@ -34,6 +35,8 @@ def main() -> None:
     p.add_argument("--router-port", type=int, default=8000)
     p.add_argument("--policy", default="round_robin")
     args = p.parse_args()
+    # treat `kill`/SIGTERM like Ctrl+C so child servers are always cleaned up
+    signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
 
     procs, urls = [], []
     try:

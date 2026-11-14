@@ -89,7 +89,8 @@ def main() -> None:
     p.add_argument("--policy", default="round_robin")
     args = p.parse_args()
     app = create_app(args.workers.split(","), args.policy)
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    # long keep-alive avoids races where a client reuses a connection the server just closed
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning", timeout_keep_alive=75)
 
 
 if __name__ == "__main__":
