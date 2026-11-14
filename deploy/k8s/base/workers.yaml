@@ -1,0 +1,43 @@
+# Worker pool. The base runs the mock worker; the gpu overlay swaps in vLLM.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llmserve-worker
+  labels: {app: llmserve-worker}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: llmserve-worker}
+  template:
+    metadata:
+      labels: {app: llmserve-worker}
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: worker
+          image: llmserve:dev
+          args: ["llmserve.mock_worker", "--host", "0.0.0.0", "--port", "8001"]
+          ports:
+            - {name: http, containerPort: 8001}
+          readinessProbe:   # only ready pods appear in the headless Service's DNS
+            httpGet: {path: /health, port: http}
+            periodSeconds: 2
+            failureThreshold: 2
+          livenessProbe:    # restart a wedged worker
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 100m, memory: 96Mi}
+            limits: {memory: 256Mi}
+---
+# Headless: DNS returns one A record per ready worker pod; the router re-resolves it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: llmserve-worker
+spec:
+  clusterIP: None
+  selector: {app: llmserve-worker}
+  ports:
+    - {name: http, port: 8001, targetPort: http}

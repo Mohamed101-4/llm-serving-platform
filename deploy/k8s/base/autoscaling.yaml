@@ -1,0 +1,25 @@
+# Scale workers on queue depth (requires KEDA: https://keda.sh).
+# KEDA polls the router's /scaling endpoint; with the metrics-api scaler the desired replica
+# count is ceil(total_load / targetValue), i.e. about `targetValue` queued+running requests per worker.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: llmserve-worker
+spec:
+  scaleTargetRef:
+    name: llmserve-worker
+  minReplicaCount: 1
+  maxReplicaCount: 6
+  pollingInterval: 5
+  cooldownPeriod: 60
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 60   # don't flap when a burst ends
+  triggers:
+    - type: metrics-api
+      metadata:
+        url: "http://llmserve-router:8000/scaling"
+        valueLocation: "total_load"
+        targetValue: "12"
