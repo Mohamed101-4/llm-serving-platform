@@ -24,7 +24,7 @@ def prompt_from_messages(messages: list[dict]) -> str:
 
 
 def create_app(config: SimConfig | None = None, model: str = "mock-model") -> FastAPI:
-    app = FastAPI(title="llmserve mock worker")
+    app = FastAPI(title="llmserve mock worker", telemetry={"tracing": False})  # our own stage spans replace per-endpoint ones
     worker = SimWorker(config or SimConfig())
     setup_tracing("llmserve-mock-worker")
     tr = trace.get_tracer("llmserve.mock_worker")

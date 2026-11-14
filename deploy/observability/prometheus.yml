@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 5s
+scrape_configs:
+  - job_name: llmserve-router
+    static_configs:
+      - targets: ["router:8000"]
+  - job_name: llmserve-workers   # vLLM metric names (mock or real)
+    static_configs:
+      - targets: ["worker-1:8001", "worker-2:8001", "worker-3:8001"]

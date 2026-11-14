@@ -68,7 +68,7 @@ def create_app(
             await discovery.stop()
         await client_holder["c"].aclose()
 
-    app = FastAPI(title="llmserve router", lifespan=lifespan)
+    app = FastAPI(title="llmserve router", lifespan=lifespan, telemetry={"tracing": False})  # our own stage spans replace per-endpoint ones
     app.state.workers = workers
     app.state.policy = pol
     app.state.admission = admission
