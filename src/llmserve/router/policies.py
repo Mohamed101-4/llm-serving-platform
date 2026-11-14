@@ -84,34 +84,36 @@ def _rendezvous(key: str, url: str) -> int:
 
 
 class PrefixAware(Policy):
-    """Send requests sharing a prompt prefix to the same worker, with a load cap.
+    """Prefer the worker that likely has this prompt's prefix cached, unless it is busier.
 
     The prefix key is the first ``prefix_chars`` characters of the prompt (the shared
     system prompt in typical chat traffic). Workers are ranked per key with rendezvous
     hashing, so each prefix has a stable "home" and only ~1/N keys move when a worker
-    joins or leaves. To avoid hot-spotting a popular prefix, a worker is skipped when its
-    load exceeds ``(1 + slack) * mean_load + 1`` (consistent hashing with bounded loads);
-    the request then goes to the next worker in that key's ranking.
+    joins or leaves.
+
+    Each worker's cost is ``load_score(w)``, minus ``affinity`` for the prefix's home
+    worker. The cheapest wins, ties broken by rendezvous rank. So the home keeps the
+    request while it is at most ``affinity`` units busier than the best alternative; past
+    that, load wins and the request spills over. A first version used a looser
+    bounded-load cap ``(1.25 * mean + 1)`` that let popular prefixes pile up and queue
+    (see RESULTS.md, Phase 2 v1).
     """
 
     name = "prefix_aware"
 
-    def __init__(self, prefix_chars: int = 512, slack: float = 0.25) -> None:
+    def __init__(self, prefix_chars: int = 512, affinity: float = 2.0) -> None:
         self.prefix_chars = prefix_chars
-        self.slack = slack
+        self.affinity = affinity
 
     def ranking(self, req: RequestInfo, workers: list[Worker]) -> list[Worker]:
         key = req.prompt[: self.prefix_chars]
         return sorted(workers, key=lambda w: _rendezvous(key, w.url), reverse=True)
 
     def choose(self, req: RequestInfo, workers: list[Worker]) -> Worker:
-        alive = self.healthy(workers)
-        loads = {w.url: load_score(w) for w in alive}
-        cap = (1 + self.slack) * (sum(loads.values()) / len(alive)) + 1
-        for w in self.ranking(req, alive):
-            if loads[w.url] <= cap:
-                return w
-        return min(alive, key=lambda w: loads[w.url])
+        ranked = self.ranking(req, self.healthy(workers))
+        costs = [load_score(w) - (self.affinity if i == 0 else 0.0) for i, w in enumerate(ranked)]
+        best = min(range(len(ranked)), key=lambda i: (costs[i], i))
+        return ranked[best]
 
 
 POLICIES: dict[str, type[Policy]] = {p.name: p for p in (RoundRobin, LeastLoad, PrefixAware)}

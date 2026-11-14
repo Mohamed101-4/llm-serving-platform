@@ -47,13 +47,24 @@ def test_prefix_aware_is_sticky_and_spreads_prefixes():
 
 def test_prefix_aware_overflows_when_home_is_overloaded():
     workers = [Worker(f"w{i}") for i in range(3)]
-    pol = PrefixAware(slack=0.25)
+    pol = PrefixAware(affinity=2.0)
     r = req("hot ")
     home = pol.choose(r, workers)
-    home.inflight = 20  # way above (1.25 * mean + 1)
+    home.inflight = 2  # within affinity: stay home for the cache hit
+    assert pol.choose(r, workers) is home
+    home.inflight = 3  # busier than the bonus is worth: spill over
     second = pol.choose(r, workers)
     assert second is not home
     assert second is pol.ranking(r, workers)[1]  # falls back to the next stable choice
+
+
+def test_prefix_aware_spills_to_least_loaded_alternative():
+    workers = [Worker(f"w{i}") for i in range(3)]
+    pol = PrefixAware(affinity=2.0)
+    r = req("hot ")
+    home, second, third = pol.ranking(r, workers)
+    home.inflight, second.inflight, third.inflight = 10, 5, 1
+    assert pol.choose(r, workers) is third
 
 
 def test_prefix_aware_minimal_reshuffle_when_worker_removed():
