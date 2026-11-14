@@ -20,7 +20,12 @@ mkdir -p logs
 
 STACK=""
 cleanup() { [[ -n "$STACK" ]] && kill "$STACK" 2> /dev/null && wait "$STACK" 2> /dev/null; true; }
-trap cleanup EXIT  # never leave routers/workers running, even when a run fails
+trap cleanup EXIT
+wait_up() {  # give up after 30 s instead of hanging forever
+  for _ in $(seq 60); do curl -sf localhost:8000/health > /dev/null && return 0; sleep 0.5; done
+  echo "router did not start; see logs/" >&2
+  exit 1
+}  # never leave routers/workers running, even when a run fails
 
 if curl -sf localhost:8000/health > /dev/null; then
   echo "something is already serving on :8000; stop it first" >&2
@@ -34,7 +39,7 @@ for POLICY in $POLICIES; do
     $UV run python scripts/run_local.py --workers "$WORKERS" --policy "$POLICY" > "logs/run_local-$POLICY.log" 2>&1 &
   fi
   STACK=$!
-  until curl -sf localhost:8000/health > /dev/null; do sleep 0.5; done
+  wait_up
   $UV run python -m llmserve.bench.loadgen --rps "$RPS" --duration "$DURATION" --num-prefixes "$PREFIXES" \
     --model "$MODEL" --backend "$BACKEND" --policy "$POLICY" --label "phase2-$TAG-$POLICY-$BACKEND" | tail -1
   cleanup
