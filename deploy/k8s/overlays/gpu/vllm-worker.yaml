@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llmserve-worker
+spec:
+  template:
+    spec:
+      containers:
+        - name: worker
+          image: vllm/vllm-openai:v0.8.5
+          command: ["vllm", "serve"]
+          args:
+            - Qwen/Qwen2.5-1.5B-Instruct
+            - --port=8001
+            - --enable-prefix-caching
+            - --gpu-memory-utilization=0.90
+          resources:
+            requests: {cpu: "4", memory: 16Gi, nvidia.com/gpu: 1}
+            limits: {memory: 24Gi, nvidia.com/gpu: 1}
+          startupProbe:     # model download + load can take minutes
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            failureThreshold: 60
+          volumeMounts:
+            - {name: hf-cache, mountPath: /root/.cache/huggingface}
+            - {name: shm, mountPath: /dev/shm}
+      volumes:
+        - name: hf-cache
+          emptyDir: {}
+        - name: shm
+          emptyDir: {medium: Memory, sizeLimit: 2Gi}
+      tolerations:
+        - {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}

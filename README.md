@@ -4,7 +4,7 @@ A distributed LLM serving platform: an OpenAI-compatible router in front of
 multiple vLLM workers, with smart routing, overload protection and a benchmark
 harness that compares each improvement against a naive round-robin baseline.
 
-Status: **Phases 1 to 3 done** (baseline, smart routing, overload protection). See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
+Status: **Phases 1 to 4 done** (baseline, smart routing, overload protection, Kubernetes). Kubernetes details are in [docs/K8S.md](docs/K8S.md). See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
 which parts need a real NVIDIA GPU, and [RESULTS.md](RESULTS.md) for measured numbers.
 
 ## Architecture
@@ -66,6 +66,11 @@ flowchart LR
   doubles as an active health check (2 failed scrapes = unhealthy, 1 success = healthy again).
   Once tokens have streamed to the client, a retry would duplicate output, so the stream ends
   with an error event instead.
+- **Kubernetes: DNS discovery + KEDA on queue depth.** Workers sit behind a headless Service
+  that the router re-resolves every 2 s, so autoscaling needs no router restart. KEDA scales on
+  the router's queue-depth signal, not GPU utilisation: vLLM keeps the GPU busy even at light
+  load, and queue depth is what users feel as latency. KubeRay is provided for GPU clusters
+  (Ray handles GPU placement and node autoscaling); the plain-Deployment overlay is the simpler option.
 - **Mock worker instead of skipping tests.** The development machine has no NVIDIA
   GPU, so routing and admission logic is developed against a simulator that exposes
   vLLM's metric names. The router doesn't know which backend it's talking to. Mock
@@ -98,6 +103,16 @@ RPS=22 PREFIXES=64 TAG=64prefix-22rps ./scripts/compare_policies.sh
 
 ```bash
 uv run python scripts/report.py results/phase2-64prefix-22rps-round_robin-*.json results/phase2-64prefix-22rps-least_load-*.json results/phase2-64prefix-22rps-prefix_aware-*.json
+```
+
+Kubernetes on kind (KEDA autoscaling demo):
+
+```bash
+./scripts/kind_up.sh
+```
+
+```bash
+uv run python scripts/k8s_autoscale_demo.py --rps 25 --duration 120 --cooldown 120
 ```
 
 Overload and failover benchmarks:

@@ -1,0 +1,74 @@
+# KubeRay RayCluster for vLLM workers on a GPU cluster. Not run here (no NVIDIA GPU);
+# the manifest is validated against the KubeRay CRD on kind (scripts/kind_up.sh).
+#
+# How it fits together:
+#   * The Ray autoscaler adds/removes GPU worker pods as vLLM replicas are requested.
+#   * deploy/kuberay/serve_workers.py runs one Ray actor per GPU; each actor starts
+#     `vllm serve` on port 8001 inside its pod.
+#   * The headless Service below selects the GPU worker pods, so the llmserve router
+#     discovers them with --worker-dns=llmserve-ray-workers:8001, the same way as the mock.
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: llmserve-vllm
+  namespace: llmserve
+spec:
+  rayVersion: "2.44.1"
+  enableInTreeAutoscaling: true
+  autoscalerOptions:
+    idleTimeoutSeconds: 300
+  headGroupSpec:
+    rayStartParams:
+      num-gpus: "0"   # keep model replicas off the head node
+    template:
+      spec:
+        containers:
+          - name: ray-head
+            image: rayproject/ray-ml:2.44.1-py311-gpu
+            resources:
+              requests: {cpu: "2", memory: 8Gi}
+              limits: {memory: 8Gi}
+            ports:
+              - {name: gcs, containerPort: 6379}
+              - {name: dashboard, containerPort: 8265}
+              - {name: client, containerPort: 10001}
+  workerGroupSpecs:
+    - groupName: gpu-workers
+      replicas: 1
+      minReplicas: 1
+      maxReplicas: 8
+      rayStartParams: {}
+      template:
+        metadata:
+          labels: {llmserve-role: vllm-worker}
+        spec:
+          containers:
+            - name: ray-worker
+              image: rayproject/ray-ml:2.44.1-py311-gpu
+              ports:
+                - {name: vllm, containerPort: 8001}
+              readinessProbe:
+                exec:
+                  command: ["bash", "-c", "wget -T 2 -q -O /dev/null http://localhost:52365/api/local_raylet_healthz"]
+                periodSeconds: 10
+              resources:
+                requests: {cpu: "4", memory: 24Gi, nvidia.com/gpu: 1}
+                limits: {memory: 24Gi, nvidia.com/gpu: 1}
+              volumeMounts:
+                - {name: shm, mountPath: /dev/shm}
+          volumes:
+            - name: shm
+              emptyDir: {medium: Memory, sizeLimit: 4Gi}
+          tolerations:
+            - {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llmserve-ray-workers
+  namespace: llmserve
+spec:
+  clusterIP: None
+  selector: {llmserve-role: vllm-worker}
+  ports:
+    - {name: vllm, port: 8001, targetPort: 8001}
