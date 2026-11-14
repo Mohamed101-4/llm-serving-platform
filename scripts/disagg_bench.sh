@@ -4,7 +4,7 @@
 # config, so the comparison is fair.
 #
 #   ./scripts/disagg_bench.sh
-#   RPS=20 DURATION=120 ./scripts/disagg_bench.sh
+#   PREFIXES=100000 TAG=unique-prompts CONFIGS="colocated-4w:4:0 disagg-1p3d:3:1" ./scripts/disagg_bench.sh
 #
 # On GPUs, see scripts/gpu/start_vllm_disagg.sh; the router flags are the same.
 set -euo pipefail
@@ -12,6 +12,7 @@ cd "$(dirname "$0")/.."
 RPS=${RPS:-15}
 DURATION=${DURATION:-60}
 PREFIXES=${PREFIXES:-8}
+TAG=${TAG:-}  # e.g. unique-prompts
 POLICY=${POLICY:-least_load}
 UV=${UV:-uv}
 # label:decode_workers:prefill_workers
@@ -38,7 +39,7 @@ for CFG in $CONFIGS; do
   STACK=$!
   wait_up
   $UV run python -m llmserve.bench.loadgen --rps "$RPS" --duration "$DURATION" --num-prefixes "$PREFIXES" \
-    --policy "$POLICY" --label "phase6-$NAME-${RPS}rps-mock" | tail -1
+    --policy "$POLICY" --label "phase6-${TAG:+$TAG-}$NAME-${RPS}rps-mock" | tail -1
   cleanup
   STACK=""
   while curl -sf localhost:8000/health > /dev/null; do sleep 0.5; done

@@ -126,3 +126,51 @@ Commit `ef2f7d0`. File: `results/phase4-autoscale-kind-20261114-001641.json`.
 The 429s came while new pods were still starting; latency numbers include port-forward overhead.
 The RayCluster manifest for GPUs was validated with `kubectl apply --dry-run=server` against the
 KubeRay 1.3.2 CRD; **no Ray or GPU workload was run.**
+
+## Phase 6: disaggregated prefill/decode (mock workers)
+
+Same 4 workers either colocated (each does prefill and decode) or split into prefill-only and
+decode-only workers. All mock workers run with `--prefill-interference` (a prefill occupies the
+"GPU" and stalls running sequences' decode steps, the effect disaggregation removes) and a KV
+transfer cost of 0.005 ms/token. Decode routing `least_load`, prefill routing `prefix_aware`.
+Poisson 15 RPS, 60 s, Apple M3 8 GB. Script: `scripts/disagg_bench.sh`. **Mock numbers, not GPU numbers.**
+
+### Prefill-heavy: mostly unique prompts (`PREFIXES=100000`)
+
+Commit `303dfe7-dirty` (only the benchmark script's label option was uncommitted). Files:
+`results/phase6-unique-prompts-colocated-4w-15rps-mock-20261114-083237.json`,
+`results/phase6-unique-prompts-disagg-1p3d-15rps-mock-20261114-083352.json`. 870/870 OK in both.
+
+| Metric | Colocated (4 mixed) | Disaggregated (1 prefill + 3 decode) | Change |
+|---|---|---|---|
+| TPOT p50 / p95 (ms) | 23.22 / 26.34 | 22.26 / 24.67 | -4.1% / -6.3% |
+| Latency p50 / p95 / p99 (ms) | 2313.79 / 4761.8 / 7944.24 | 2278.06 / 4807.76 / 7613.73 | -1.5% / +1.0% / -4.2% |
+| TTFT p50 / p95 / p99 (ms) | 86.88 / 166.48 / 196.22 | 113.89 / 286.64 / 384.14 | +31.1% / +72.2% / +95.8% |
+| Throughput (req/s) | 13.569 | 13.575 | same |
+| Prefix-cache hit rate | 0.342 | 0.363 | +0.021 |
+
+### Cache-friendly: 8 shared system prompts (default workload)
+
+Commit `303dfe7`. Files: `results/phase6-colocated-4w-15rps-mock-20261114-082819.json`,
+`results/phase6-disagg-1p3d-15rps-mock-20261114-082928.json`,
+`results/phase6-disagg-2p2d-15rps-mock-20261114-083053.json`. 870/870 OK in all three.
+
+| Metric | Colocated (4 mixed) | 1 prefill + 3 decode | 2 prefill + 2 decode |
+|---|---|---|---|
+| TPOT p50 / p95 (ms) | 19.9 / 21.69 | 22.28 / 24.63 (+12.0% / +13.6%) | 25.72 / 25.85 |
+| Latency p50 / p99 (ms) | 1936.09 / 6835.49 | 2192.3 / 7550.07 (+13.2% / +10.5%) | 10093.73 / 20024.82 |
+| TTFT p50 / p99 (ms) | 38.0 / 117.99 | 49.28 / 184.27 (+29.7% / +56.2%) | 7571.87 / 15801.6 |
+| Throughput (req/s) | 13.667 | 13.576 | 10.826 |
+| Prefix-cache hit rate | 0.767 | 0.790 | 0.787 |
+
+### What this shows
+
+- Disaggregation **only helped when prefill was heavy**: with mostly unique prompts it made decode
+  smoother (TPOT p95 -6.3%, latency p99 -4.2%) at the cost of later first tokens (an extra network
+  hop, a KV transfer, and one prefill worker serving all prefills).
+- With cache-friendly prompts most prefill is skipped, so there is little interference to remove,
+  and taking a worker away from decode makes every metric worse (+12% TPOT).
+- **The P:D ratio matters most.** 2 prefill + 2 decode starved decode capacity and queued requests
+  for seconds. Real deployments tune the ratio to the prompt/output length mix.
+- The vLLM version (`scripts/gpu/start_vllm_disagg.sh`, NixlConnector) uses the same router code
+  path but **has not been run on GPUs**; no GPU numbers exist for this phase.

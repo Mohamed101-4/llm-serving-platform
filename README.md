@@ -4,7 +4,7 @@ A distributed LLM serving platform: an OpenAI-compatible router in front of
 multiple vLLM workers, with smart routing, overload protection and a benchmark
 harness that compares each improvement against a naive round-robin baseline.
 
-Status: **Phases 1 to 5 done** (baseline, smart routing, overload protection, Kubernetes, observability). See [docs/K8S.md](docs/K8S.md) and [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md). See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
+Status: **Phases 1 to 6 done** (baseline, smart routing, overload protection, Kubernetes, observability, disaggregated prefill/decode). See [docs/K8S.md](docs/K8S.md) and [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md). See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
 which parts need a real NVIDIA GPU, and [RESULTS.md](RESULTS.md) for measured numbers.
 
 ## Architecture
@@ -26,6 +26,8 @@ flowchart LR
     R -. /metrics .-> PR[Prometheus] --> G[Grafana]
     R -. OTLP traces .-> JG[Jaeger]
     W1 -. OTLP traces .-> JG
+    R -. optional: prefill first,<br/>kv_transfer_params .-> PF[Prefill workers]
+    PF -. KV cache .-> W1
 ```
 
 - **Router** (`src/llmserve/router`): FastAPI proxy. Picks a worker per request
@@ -79,6 +81,12 @@ flowchart LR
   histograms give TTFT and latency percentiles. Traces answer "where did this slow request
   spend its time?": router spans plus worker queue/prefill/decode spans in one trace via W3C
   `traceparent`, which vLLM's own tracing also reads.
+- **Disaggregated prefill/decode speaks vLLM's protocol.** With `--prefill-workers`, the router
+  sends each request to a prefill worker first (`max_tokens=1`, `kv_transfer_params.do_remote_decode`),
+  then forwards the returned `kv_transfer_params` to a decode worker that streams the answer. This is
+  the protocol vLLM's NixlConnector proxy uses, so the same code drives mock and real workers.
+  Prefill workers are chosen prefix-aware (that's where the prefix cache lives); decode workers by
+  load. On the mock it only paid off for prefill-heavy traffic and cost TTFT (see RESULTS.md, Phase 6).
 - **Mock worker instead of skipping tests.** The development machine has no NVIDIA
   GPU, so routing and admission logic is developed against a simulator that exposes
   vLLM's metric names. The router doesn't know which backend it's talking to. Mock
@@ -127,6 +135,12 @@ Observability stack (router, mock workers, Prometheus, Grafana on :3000, Jaeger 
 
 ```bash
 docker compose -f deploy/observability/docker-compose.yml up -d --build
+```
+
+Colocated vs disaggregated prefill/decode (prefill-heavy workload):
+
+```bash
+PREFIXES=100000 TAG=unique-prompts CONFIGS="colocated-4w:4:0 disagg-1p3d:3:1" ./scripts/disagg_bench.sh
 ```
 
 Overload and failover benchmarks:
