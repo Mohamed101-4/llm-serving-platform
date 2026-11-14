@@ -1,12 +1,9 @@
 __pycache__/
-*.py[cod]
+*.pyc
 .venv/
 .pytest_cache/
-.ruff_cache/
 *.egg-info/
 dist/
 build/
 .DS_Store
-.env
-# scratch benchmark output; real runs are saved directly in results/
-results/tmp/
+logs/
