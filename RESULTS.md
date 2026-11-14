@@ -107,3 +107,22 @@ File: `results/phase3-failover-kill-at-20s-mock-20261114-000209.json`.
 Requests already streaming tokens can't be retried transparently; everything else fails over.
 Two earlier failover runs were discarded because of benchmark bugs (the launcher tore down the router
 when a worker died; loadgen counted mid-stream error events as success). Both are fixed in the commits above.
+
+## Phase 4: Kubernetes autoscaling on kind (mock workers)
+
+kind single-node cluster in Docker Desktop (4 GB VM) on Apple M3 8 GB. KEDA metrics-api scaler on the
+router's `/scaling` total_load, target 12 per worker, min 1, max 6. Router: `prefix_aware` + admission
+(TTFT SLO 500 ms). Load: Poisson 25 RPS for 120 s through `kubectl port-forward`, then 120 s idle.
+Commit `ef2f7d0`. File: `results/phase4-autoscale-kind-20261114-001641.json`.
+
+| Metric | Value |
+|---|---|
+| Worker replicas | 2 at start, 4 desired at t=10 s, 6 ready by t=32 s, 1 by t=176 s (56 s after load stopped) |
+| Requests OK / 429 / failed | 2874 / 179 / 0 of 3053 |
+| Throughput (req/s) | 23.02 |
+| TTFT p50 / p95 / p99 (ms) | 46.3 / 369.7 / 969.6 |
+| Latency p50 / p95 / p99 (ms) | 2243 / 5059 / 7417 |
+
+The 429s came while new pods were still starting; latency numbers include port-forward overhead.
+The RayCluster manifest for GPUs was validated with `kubectl apply --dry-run=server` against the
+KubeRay 1.3.2 CRD; **no Ray or GPU workload was run.**

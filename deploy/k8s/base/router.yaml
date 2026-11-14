@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llmserve-router
+  labels: {app: llmserve-router}
+spec:
+  # One replica: admission estimates use this router's own inflight counts. Several
+  # replicas work too (they also read vLLM's queue), just with less precise estimates.
+  replicas: 1
+  selector:
+    matchLabels: {app: llmserve-router}
+  template:
+    metadata:
+      labels: {app: llmserve-router}
+    spec:
+      containers:
+        - name: router
+          image: llmserve:dev
+          args:
+            - llmserve.router
+            - --host=0.0.0.0
+            - --port=8000
+            - --worker-dns=llmserve-worker:8001
+            - --policy=prefix_aware
+            - --slo-ttft-ms=500
+          ports:
+            - {name: http, containerPort: 8000}
+          readinessProbe:   # 503 until at least one worker is healthy
+            httpGet: {path: /ready, port: http}
+            periodSeconds: 2
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 200m, memory: 128Mi}
+            limits: {memory: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llmserve-router
+spec:
+  selector: {app: llmserve-router}
+  ports:
+    - {name: http, port: 8000, targetPort: http}
