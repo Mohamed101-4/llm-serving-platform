@@ -1,0 +1,1784 @@
+{
+  "label": "local-llm-2rps-round_robin-llamacpp",
+  "timestamp": "2026-11-14T14:17:19+00:00",
+  "commit": "6374c31-dirty",
+  "backend": "llamacpp",
+  "policy": "round_robin",
+  "model": "qwen2.5-0.5b-instruct-q4_k_m",
+  "hardware": {
+    "host": "mohameds-MacBook-Pro.local",
+    "os": "Darwin 23.4.0",
+    "machine": "arm64",
+    "cpu": "Apple M3",
+    "gpus": [],
+    "python": "3.12.16"
+  },
+  "load": {
+    "target_rps": 2.0,
+    "duration_s": 90.0,
+    "arrival": "poisson"
+  },
+  "workload": {
+    "num_prefixes": 8,
+    "prefix_tokens_mean": 600,
+    "zipf_a": 1.2,
+    "user_tokens_median": 120,
+    "user_tokens_sigma": 0.6,
+    "output_tokens_median": 96,
+    "output_tokens_sigma": 0.5,
+    "max_output_tokens": 512,
+    "seed": 0
+  },
+  "summary": {
+    "requests_sent": 172,
+    "requests_ok": 172,
+    "requests_rejected_429": 0,
+    "requests_failed": 0,
+    "wall_time_s": 91.514,
+    "throughput_req_s": 1.879,
+    "output_tokens_per_s": 199.78,
+    "latency_ms": {
+      "p50": 1740.94,
+      "p95": 4651.33,
+      "p99": 7546.36,
+      "mean": 2129.44
+    },
+    "ttft_ms": {
+      "p50": 100.54,
+      "p95": 354.53,
+      "p99": 498.89
+    },
+    "tpot_ms": {
+      "p50": 18.74,
+      "p95": 27.88
+    },
+    "requests_per_worker": {
+      "http://127.0.0.1:8001": 86,
+      "http://127.0.0.1:8002": 86
+    },
+    "gpu_memory_peak_mib": null,
+    "prefix_cache_hit_rate": 0.6891
+  },
+  "samples": [
+    {
+      "prefix_id": 2,
+      "start": 0.001275333110243082,
+      "ttft": 0.19897025008685887,
+      "latency": 2.8439911659806967,
+      "output_tokens": 132,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 0.6317952501121908,
+      "ttft": 0.29982650000602007,
+      "latency": 6.204712041886523,
+      "output_tokens": 188,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 4,
+      "start": 1.130488583119586,
+      "ttft": 0.22824220801703632,
+      "latency": 3.6747676248196512,
+      "output_tokens": 118,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 7,
+      "start": 1.426712250104174,
+      "ttft": 0.4764800830744207,
+      "latency": 3.16118283290416,
+      "output_tokens": 93,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 1.4361965421121567,
+      "ttft": 0.3112445001024753,
+      "latency": 9.639636791078374,
+      "output_tokens": 380,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 5,
+      "start": 1.7808217080309987,
+      "ttft": 0.521802666131407,
+      "latency": 3.7246207499410957,
+      "output_tokens": 111,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 1.8822444169782102,
+      "ttft": 0.3610377088189125,
+      "latency": 1.5360879169311374,
+      "output_tokens": 45,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 2.0853173329960555,
+      "ttft": 0.43537370790727437,
+      "latency": 1.341988499974832,
+      "output_tokens": 45,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 6,
+      "start": 3.0169502501375973,
+      "ttft": 0.3498398750089109,
+      "latency": 1.5669719588477165,
+      "output_tokens": 49,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 3.6552376251202077,
+      "ttft": 0.32611829205416143,
+      "latency": 3.386312084039673,
+      "output_tokens": 110,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 5,
+      "start": 3.9747096670325845,
+      "ttft": 0.3095464170910418,
+      "latency": 2.3423304171301425,
+      "output_tokens": 81,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 4.986852958099917,
+      "ttft": 0.3816254159901291,
+      "latency": 1.148275291081518,
+      "output_tokens": 30,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 5.2142687500454485,
+      "ttft": 0.29201012500561774,
+      "latency": 4.89499095804058,
+      "output_tokens": 193,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 5.558627082966268,
+      "ttft": 0.24043479096144438,
+      "latency": 1.3676081248559058,
+      "output_tokens": 50,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 6.584223250159994,
+      "ttft": 0.25368850002996624,
+      "latency": 1.299144374905154,
+      "output_tokens": 72,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 7.306741666980088,
+      "ttft": 0.2565107501577586,
+      "latency": 2.105368125019595,
+      "output_tokens": 127,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 7.783817958086729,
+      "ttft": 0.05912037496455014,
+      "latency": 3.0289439170155674,
+      "output_tokens": 124,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 5,
+      "start": 9.145564791979268,
+      "ttft": 0.11321525019593537,
+      "latency": 4.2400094170589,
+      "output_tokens": 156,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 9.533264083089307,
+      "ttft": 0.10276366700418293,
+      "latency": 1.5693273330107331,
+      "output_tokens": 83,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 9.825175333069637,
+      "ttft": 0.10377304092980921,
+      "latency": 1.0853473749011755,
+      "output_tokens": 25,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 4,
+      "start": 9.937536292010918,
+      "ttft": 0.24655891698785126,
+      "latency": 1.7556544579565525,
+      "output_tokens": 105,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 10.115823250031099,
+      "ttft": 0.29184295795857906,
+      "latency": 2.4805920829530805,
+      "output_tokens": 88,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 11.876375208143145,
+      "ttft": 0.14505629101768136,
+      "latency": 2.6903524580411613,
+      "output_tokens": 130,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 12.601966292131692,
+      "ttft": 0.07965762494131923,
+      "latency": 3.1568906661123037,
+      "output_tokens": 139,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 7,
+      "start": 12.757896542083472,
+      "ttft": 0.2946793339215219,
+      "latency": 0.6558036669157445,
+      "output_tokens": 30,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 13.42409999994561,
+      "ttft": 0.07190237520262599,
+      "latency": 3.2718024160712957,
+      "output_tokens": 176,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 13.434608208015561,
+      "ttft": 0.08132270793430507,
+      "latency": 2.1539040829520673,
+      "output_tokens": 93,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 4,
+      "start": 14.08583258301951,
+      "ttft": 0.2200985001400113,
+      "latency": 3.0231595411896706,
+      "output_tokens": 176,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 4,
+      "start": 14.14750041696243,
+      "ttft": 0.18575379205867648,
+      "latency": 1.7118928339332342,
+      "output_tokens": 81,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 14.580971667077392,
+      "ttft": 0.05330862500704825,
+      "latency": 0.6179008330218494,
+      "output_tokens": 39,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 6,
+      "start": 15.197808458004147,
+      "ttft": 0.13865379197522998,
+      "latency": 4.839565000031143,
+      "output_tokens": 241,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 15.212233750149608,
+      "ttft": 0.13067895895801485,
+      "latency": 1.828445625025779,
+      "output_tokens": 111,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 15.293262500083074,
+      "ttft": 0.0976196660194546,
+      "latency": 0.9451712081208825,
+      "output_tokens": 52,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 15.343456750037149,
+      "ttft": 0.4589034169912338,
+      "latency": 4.38412950001657,
+      "output_tokens": 196,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 15.547580457990989,
+      "ttft": 0.12814050004817545,
+      "latency": 0.6763024169486016,
+      "output_tokens": 37,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 16.217906250152737,
+      "ttft": 0.5528672079090029,
+      "latency": 2.348659582901746,
+      "output_tokens": 77,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 16.503481792053208,
+      "ttft": 0.07635800004936755,
+      "latency": 2.487444374943152,
+      "output_tokens": 88,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 16.96377725014463,
+      "ttft": 0.12777058314532042,
+      "latency": 2.326193290995434,
+      "output_tokens": 79,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 17.19304775004275,
+      "ttft": 0.06431745900772512,
+      "latency": 2.801020999904722,
+      "output_tokens": 141,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 18.53481908305548,
+      "ttft": 0.12481033289805055,
+      "latency": 1.5517631249967963,
+      "output_tokens": 84,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 20.03364733303897,
+      "ttft": 0.04740220890380442,
+      "latency": 2.334217208903283,
+      "output_tokens": 154,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 4,
+      "start": 20.363369917031378,
+      "ttft": 0.05712449993006885,
+      "latency": 2.6349823330529034,
+      "output_tokens": 100,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 20.572460083058104,
+      "ttft": 0.20405395817942917,
+      "latency": 0.7098994171246886,
+      "output_tokens": 41,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 20.663002958055586,
+      "ttft": 0.1151387500576675,
+      "latency": 3.77421470801346,
+      "output_tokens": 154,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 21.60063537512906,
+      "ttft": 0.07620412507094443,
+      "latency": 1.4299675000365824,
+      "output_tokens": 57,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 21.971944333054125,
+      "ttft": 0.11654258402995765,
+      "latency": 2.375657750060782,
+      "output_tokens": 98,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 22.599956083111465,
+      "ttft": 0.15324316592887044,
+      "latency": 1.2075107907876372,
+      "output_tokens": 63,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 22.7605794579722,
+      "ttft": 0.13149229204282165,
+      "latency": 2.5874247080646455,
+      "output_tokens": 133,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 23.034816666971892,
+      "ttft": 0.09514091699384153,
+      "latency": 1.7591966670006514,
+      "output_tokens": 109,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 23.764177875127643,
+      "ttft": 0.10207575000822544,
+      "latency": 2.5699099160265177,
+      "output_tokens": 158,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 24.458882375154644,
+      "ttft": 0.07061375002376735,
+      "latency": 4.11128112510778,
+      "output_tokens": 181,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 24.58342287503183,
+      "ttft": 0.06840583309531212,
+      "latency": 1.5635632080957294,
+      "output_tokens": 90,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 24.759647167054936,
+      "ttft": 0.0966151668690145,
+      "latency": 1.1600393750704825,
+      "output_tokens": 52,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 24.92561583314091,
+      "ttft": 0.08955191704444587,
+      "latency": 1.2222549580037594,
+      "output_tokens": 68,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 5,
+      "start": 24.979716583155096,
+      "ttft": 0.15880654216744006,
+      "latency": 3.2080462500452995,
+      "output_tokens": 151,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 25.323698250111192,
+      "ttft": 0.11412516585551202,
+      "latency": 1.1751078329980373,
+      "output_tokens": 75,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 25.551645874977112,
+      "ttft": 0.07477770885452628,
+      "latency": 2.556464083958417,
+      "output_tokens": 121,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 27.491263333009556,
+      "ttft": 0.08721483312547207,
+      "latency": 2.2964985000435263,
+      "output_tokens": 98,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 27.67971120798029,
+      "ttft": 0.1782022078987211,
+      "latency": 3.6198187079280615,
+      "output_tokens": 182,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 27.96290491707623,
+      "ttft": 0.08717929082922637,
+      "latency": 4.497321290895343,
+      "output_tokens": 181,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 28.007861332967877,
+      "ttft": 0.14891083305701613,
+      "latency": 2.425858207978308,
+      "output_tokens": 124,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 28.525183875113726,
+      "ttft": 0.06994874984957278,
+      "latency": 0.9116282919421792,
+      "output_tokens": 43,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 28.733923917170614,
+      "ttft": 0.07036095904186368,
+      "latency": 1.4648229170124978,
+      "output_tokens": 84,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 4,
+      "start": 28.843530375044793,
+      "ttft": 0.07491654180921614,
+      "latency": 1.679424666799605,
+      "output_tokens": 83,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 28.93905287515372,
+      "ttft": 0.09287662501446903,
+      "latency": 0.8903148339595646,
+      "output_tokens": 54,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 29.9810885831248,
+      "ttft": 0.1973797499667853,
+      "latency": 1.5441127910744399,
+      "output_tokens": 57,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 30.272386125056073,
+      "ttft": 0.10002262494526803,
+      "latency": 2.055123290978372,
+      "output_tokens": 126,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 30.518937167013064,
+      "ttft": 0.1657917918637395,
+      "latency": 1.9409580829087645,
+      "output_tokens": 67,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 30.90767866699025,
+      "ttft": 0.07218054099939764,
+      "latency": 1.5012395409867167,
+      "output_tokens": 113,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 32.307359708007425,
+      "ttft": 0.07779720798134804,
+      "latency": 0.49983779108151793,
+      "output_tokens": 55,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 33.78673195815645,
+      "ttft": 0.14700058312155306,
+      "latency": 2.003930625040084,
+      "output_tokens": 107,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 33.820777042070404,
+      "ttft": 0.1163668748922646,
+      "latency": 0.9513593330048025,
+      "output_tokens": 69,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 34.441993250045925,
+      "ttft": 0.06842533382587135,
+      "latency": 3.0631128340028226,
+      "output_tokens": 164,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 35.42003154195845,
+      "ttft": 0.05905779195018113,
+      "latency": 0.9483779170550406,
+      "output_tokens": 45,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 35.49746129196137,
+      "ttft": 0.14117733296006918,
+      "latency": 2.338042583083734,
+      "output_tokens": 149,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 35.79771991702728,
+      "ttft": 0.05811166716739535,
+      "latency": 1.309491417137906,
+      "output_tokens": 79,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 36.7976305000484,
+      "ttft": 0.11144112492911518,
+      "latency": 1.1004942918661982,
+      "output_tokens": 110,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 38.93771741702221,
+      "ttft": 0.12234716583043337,
+      "latency": 0.8566298747900873,
+      "output_tokens": 87,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 6,
+      "start": 39.47947937506251,
+      "ttft": 0.07377779111266136,
+      "latency": 1.1438837910536677,
+      "output_tokens": 110,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 40.13866295805201,
+      "ttft": 0.05210133409127593,
+      "latency": 1.0364284170791507,
+      "output_tokens": 118,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 41.737745583057404,
+      "ttft": 0.14761687512509525,
+      "latency": 1.606822834117338,
+      "output_tokens": 126,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 42.13230475015007,
+      "ttft": 0.06612170790322125,
+      "latency": 1.1931716250255704,
+      "output_tokens": 86,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 42.921042875153944,
+      "ttft": 0.059926042100414634,
+      "latency": 0.8286816249601543,
+      "output_tokens": 52,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 43.08260149997659,
+      "ttft": 0.10264474991708994,
+      "latency": 0.9099817909300327,
+      "output_tokens": 65,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 5,
+      "start": 43.554222708102316,
+      "ttft": 0.11794504220597446,
+      "latency": 1.883900625165552,
+      "output_tokens": 165,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 44.29382133297622,
+      "ttft": 0.05380908399820328,
+      "latency": 1.2607445840258151,
+      "output_tokens": 109,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 46.16621766705066,
+      "ttft": 0.0832101667765528,
+      "latency": 1.9063616248313338,
+      "output_tokens": 198,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 47.27233641711064,
+      "ttft": 0.1098261249717325,
+      "latency": 1.0482231250498444,
+      "output_tokens": 67,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 47.443506916984916,
+      "ttft": 0.06368579110130668,
+      "latency": 1.4797644161153585,
+      "output_tokens": 111,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 4,
+      "start": 47.81634883303195,
+      "ttft": 0.07114016683772206,
+      "latency": 0.9939277498051524,
+      "output_tokens": 72,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 48.600709500024095,
+      "ttft": 0.07803512504324317,
+      "latency": 0.7637795421760529,
+      "output_tokens": 87,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 50.35977916698903,
+      "ttft": 0.13019916601479053,
+      "latency": 2.40872341603972,
+      "output_tokens": 123,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 5,
+      "start": 50.62864520796575,
+      "ttft": 0.09898495813831687,
+      "latency": 1.1733597919810563,
+      "output_tokens": 90,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 7,
+      "start": 51.03990354202688,
+      "ttft": 0.07839774992316961,
+      "latency": 6.185437707928941,
+      "output_tokens": 255,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 51.98199520795606,
+      "ttft": 0.04346929187886417,
+      "latency": 0.9559038749430329,
+      "output_tokens": 56,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 52.22138770809397,
+      "ttft": 0.1131199998781085,
+      "latency": 1.1523757078684866,
+      "output_tokens": 49,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 52.58212887495756,
+      "ttft": 0.06853950000368059,
+      "latency": 1.5111102499067783,
+      "output_tokens": 87,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 52.59074925002642,
+      "ttft": 0.09403724991716444,
+      "latency": 1.944517832947895,
+      "output_tokens": 78,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 52.591409750049934,
+      "ttft": 0.1553241671063006,
+      "latency": 1.602564875036478,
+      "output_tokens": 93,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 52.65091645810753,
+      "ttft": 0.2516857080627233,
+      "latency": 2.9010308750439435,
+      "output_tokens": 117,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 53.69271770794876,
+      "ttft": 0.11534870811738074,
+      "latency": 1.4399625409860164,
+      "output_tokens": 70,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 54.38674854207784,
+      "ttft": 0.12294391705654562,
+      "latency": 0.706134625012055,
+      "output_tokens": 27,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 54.394715500064194,
+      "ttft": 0.08129679202102125,
+      "latency": 1.0783889589365572,
+      "output_tokens": 54,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 54.917907333001494,
+      "ttft": 0.08433033293113112,
+      "latency": 1.70591212506406,
+      "output_tokens": 73,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 55.721402124967426,
+      "ttft": 0.07790187490172684,
+      "latency": 1.5242167499382049,
+      "output_tokens": 122,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 56.423534667119384,
+      "ttft": 0.09358433308079839,
+      "latency": 0.7901869169436395,
+      "output_tokens": 29,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 57.44950999994762,
+      "ttft": 0.06127354106865823,
+      "latency": 0.9732052499894053,
+      "output_tokens": 88,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 57.84059058316052,
+      "ttft": 0.09808641602285206,
+      "latency": 1.6078619160689414,
+      "output_tokens": 100,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 58.08146341703832,
+      "ttft": 0.051223292015492916,
+      "latency": 5.1948682081419975,
+      "output_tokens": 362,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 4,
+      "start": 58.874142167158425,
+      "ttft": 0.09466629195958376,
+      "latency": 0.8317469169851393,
+      "output_tokens": 43,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 59.782077291980386,
+      "ttft": 0.04321083286777139,
+      "latency": 1.6120997918769717,
+      "output_tokens": 133,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 59.98909554211423,
+      "ttft": 0.03479570895433426,
+      "latency": 1.7890978341456503,
+      "output_tokens": 136,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 61.41590529214591,
+      "ttft": 0.09064770885743201,
+      "latency": 2.5246202498674393,
+      "output_tokens": 111,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 62.37875766702928,
+      "ttft": 0.09190141595900059,
+      "latency": 2.1094802499283105,
+      "output_tokens": 150,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 5,
+      "start": 62.90112091694027,
+      "ttft": 0.11726695811375976,
+      "latency": 2.5182118751108646,
+      "output_tokens": 124,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 64.08701408305205,
+      "ttft": 0.06635104096494615,
+      "latency": 9.513395125046372,
+      "output_tokens": 426,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 64.52695854194462,
+      "ttft": 0.07608104194514453,
+      "latency": 1.1480229999870062,
+      "output_tokens": 53,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 64.89404137502424,
+      "ttft": 0.07541058398783207,
+      "latency": 1.3779807090759277,
+      "output_tokens": 60,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 65.16663008299656,
+      "ttft": 0.11907533393241465,
+      "latency": 1.3888375840615481,
+      "output_tokens": 56,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 7,
+      "start": 65.40721137495711,
+      "ttft": 0.12435566703788936,
+      "latency": 0.7203975419979542,
+      "output_tokens": 36,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 65.7245188751258,
+      "ttft": 0.16245812503620982,
+      "latency": 5.668294332921505,
+      "output_tokens": 254,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 65.78649037494324,
+      "ttft": 0.1211982078384608,
+      "latency": 1.374965624883771,
+      "output_tokens": 56,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 66.36612391704693,
+      "ttft": 0.09003479196690023,
+      "latency": 1.8117845829110593,
+      "output_tokens": 68,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 66.64724345807917,
+      "ttft": 0.11184762511402369,
+      "latency": 1.160030041122809,
+      "output_tokens": 60,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 67.22749270801432,
+      "ttft": 0.07160933408886194,
+      "latency": 0.9500190000981092,
+      "output_tokens": 38,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 67.69558095815592,
+      "ttft": 0.06410920806229115,
+      "latency": 1.1690179160796106,
+      "output_tokens": 35,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 5,
+      "start": 67.72671712515876,
+      "ttft": 0.1268326670397073,
+      "latency": 1.495640957960859,
+      "output_tokens": 99,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 68.0372806249652,
+      "ttft": 0.12802279088646173,
+      "latency": 4.430218082852662,
+      "output_tokens": 162,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 68.11344733298756,
+      "ttft": 0.11668249987997115,
+      "latency": 3.09655591705814,
+      "output_tokens": 152,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 69.47798641701229,
+      "ttft": 0.08930958295240998,
+      "latency": 1.4646551657933742,
+      "output_tokens": 54,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 6,
+      "start": 71.40386754204519,
+      "ttft": 0.05812137480825186,
+      "latency": 0.9824878748040646,
+      "output_tokens": 65,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 6,
+      "start": 72.02476629195735,
+      "ttft": 0.28535966691561043,
+      "latency": 3.041017249925062,
+      "output_tokens": 141,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 72.56696816696785,
+      "ttft": 0.056305292062461376,
+      "latency": 1.7406324581243098,
+      "output_tokens": 111,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 72.89937987504527,
+      "ttft": 0.08689312520436943,
+      "latency": 1.9045941249933094,
+      "output_tokens": 69,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 73.09515250008553,
+      "ttft": 0.0617876669857651,
+      "latency": 2.089374292176217,
+      "output_tokens": 136,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 73.16688958299346,
+      "ttft": 0.08709283289499581,
+      "latency": 0.5063602919690311,
+      "output_tokens": 30,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 73.63099862495437,
+      "ttft": 0.0666037080809474,
+      "latency": 1.8670198330655694,
+      "output_tokens": 113,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 6,
+      "start": 74.03969162516296,
+      "ttft": 0.2626348331104964,
+      "latency": 1.9915035411249846,
+      "output_tokens": 76,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 74.39718358311802,
+      "ttft": 0.07910716696642339,
+      "latency": 1.7494790838100016,
+      "output_tokens": 99,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 75.27194791706279,
+      "ttft": 0.07628841698169708,
+      "latency": 1.716746292077005,
+      "output_tokens": 100,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 75.71744770812802,
+      "ttft": 0.07403737492859364,
+      "latency": 6.742928290972486,
+      "output_tokens": 349,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 75.78459741710685,
+      "ttft": 0.14532074984163046,
+      "latency": 2.71337924990803,
+      "output_tokens": 176,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 76.46005950006656,
+      "ttft": 0.08318062499165535,
+      "latency": 1.641293958062306,
+      "output_tokens": 62,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 77.78636025008745,
+      "ttft": 0.09330654190853238,
+      "latency": 1.1699132090434432,
+      "output_tokens": 62,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 78.8586593749933,
+      "ttft": 0.09110279195010662,
+      "latency": 4.415696041891351,
+      "output_tokens": 243,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 79.35280695813708,
+      "ttft": 0.05502120801247656,
+      "latency": 0.5810117919463664,
+      "output_tokens": 44,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 79.69615325005725,
+      "ttft": 0.07739604194648564,
+      "latency": 1.7412431249395013,
+      "output_tokens": 89,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 80.64398854202591,
+      "ttft": 0.1045045421924442,
+      "latency": 1.7196983750909567,
+      "output_tokens": 117,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 3,
+      "start": 80.96791070816107,
+      "ttft": 0.08582158293575048,
+      "latency": 1.9019856669474393,
+      "output_tokens": 112,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 81.60262233298272,
+      "ttft": 0.06454279203899205,
+      "latency": 2.807903124950826,
+      "output_tokens": 188,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 81.83925770805217,
+      "ttft": 0.0816779169254005,
+      "latency": 0.8078440420795232,
+      "output_tokens": 53,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 82.71021687495522,
+      "ttft": 0.10983129101805389,
+      "latency": 2.1236206251196563,
+      "output_tokens": 129,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 83.43992879195139,
+      "ttft": 0.05782566708512604,
+      "latency": 2.6775370840914547,
+      "output_tokens": 147,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 83.66519416705705,
+      "ttft": 0.14053500001318753,
+      "latency": 1.9474242499563843,
+      "output_tokens": 92,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 83.76141045801342,
+      "ttft": 0.12831962504424155,
+      "latency": 0.7579670001287013,
+      "output_tokens": 46,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 84.86948633310385,
+      "ttft": 0.09060591598972678,
+      "latency": 0.9553105828817934,
+      "output_tokens": 42,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 85.04038412496448,
+      "ttft": 0.0756472919601947,
+      "latency": 2.0095143339131027,
+      "output_tokens": 81,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 7,
+      "start": 85.19081854214892,
+      "ttft": 0.10343875014223158,
+      "latency": 2.789151292061433,
+      "output_tokens": 112,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 85.49822195805609,
+      "ttft": 0.0985716248396784,
+      "latency": 2.640242916997522,
+      "output_tokens": 120,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 1,
+      "start": 85.60767108295113,
+      "ttft": 0.10105787497013807,
+      "latency": 1.9505489999428391,
+      "output_tokens": 82,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 6,
+      "start": 85.72956324997358,
+      "ttft": 0.08609204203821719,
+      "latency": 0.9505822921637446,
+      "output_tokens": 42,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 85.82334312493913,
+      "ttft": 0.09330654190853238,
+      "latency": 2.2005589578766376,
+      "output_tokens": 91,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 85.9969742919784,
+      "ttft": 0.30442562513053417,
+      "latency": 1.6981817081104964,
+      "output_tokens": 74,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 7,
+      "start": 86.03627508296631,
+      "ttft": 0.36027162498794496,
+      "latency": 1.3140842909924686,
+      "output_tokens": 59,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 86.60282558295876,
+      "ttft": 0.17853204207494855,
+      "latency": 2.4676992089953274,
+      "output_tokens": 108,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 86.97569374996237,
+      "ttft": 0.48952475003898144,
+      "latency": 1.2816747920587659,
+      "output_tokens": 43,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 4,
+      "start": 87.07620766712353,
+      "ttft": 0.09502000012435019,
+      "latency": 2.6816918330732733,
+      "output_tokens": 109,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 87.36059250007384,
+      "ttft": 0.3215665831230581,
+      "latency": 3.8928676249925047,
+      "output_tokens": 202,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 2,
+      "start": 87.55397374997847,
+      "ttft": 0.28248350019566715,
+      "latency": 3.54258616711013,
+      "output_tokens": 178,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 0,
+      "start": 88.36112270806916,
+      "ttft": 0.10454254201613367,
+      "latency": 1.6788082080893219,
+      "output_tokens": 57,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    },
+    {
+      "prefix_id": 4,
+      "start": 89.07418274995871,
+      "ttft": 0.13210495910607278,
+      "latency": 1.3214031250681728,
+      "output_tokens": 67,
+      "status": 200,
+      "worker": "http://127.0.0.1:8001",
+      "error": null
+    },
+    {
+      "prefix_id": 7,
+      "start": 89.17615475016646,
+      "ttft": 0.13030204107053578,
+      "latency": 2.3379522911272943,
+      "output_tokens": 165,
+      "status": 200,
+      "worker": "http://127.0.0.1:8002",
+      "error": null
+    }
+  ]
+}
