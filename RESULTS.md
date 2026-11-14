@@ -174,3 +174,24 @@ Commit `303dfe7`. Files: `results/phase6-colocated-4w-15rps-mock-20261114-082819
   for seconds. Real deployments tune the ratio to the prompt/output length mix.
 - The vLLM version (`scripts/gpu/start_vllm_disagg.sh`, NixlConnector) uses the same router code
   path but **has not been run on GPUs**; no GPU numbers exist for this phase.
+
+## Phase 7: Triton INT8 (W8A16) matmul kernel
+
+Weight-only INT8 matmul (`src/llmserve/kernels/int8_matmul.py`): int8 weights with per-output-channel
+scales, converted in registers, fp32 accumulation, scale applied once per output tile. Validated
+against a PyTorch dequantize-then-matmul reference. Commit `f31c48a`. File:
+`results/phase7-int8-correctness-interpret-20261114-134111.json`.
+
+Hardware: **CPU via the Triton interpreter (`TRITON_INTERPRET=1`)**, Linux aarch64 in Docker Desktop
+on an Apple M3 host; torch 2.15.0+cpu, triton 3.9.0. Script: `scripts/check_int8_kernel.sh`.
+
+| Check (5 shapes, M 1 to 128, K 256 to 1024, N 256 to 1024, fp32) | Result |
+|---|---|
+| Matches PyTorch reference (`allclose`, rtol = atol = 1e-4) | 5 / 5 shapes |
+| Max abs error vs reference | 3.8e-5 to 8.7e-5 |
+| Relative (Frobenius) error vs unquantized fp32 matmul | 0.70% to 0.78% (INT8 quantization error) |
+| pytest `tests/test_int8_kernel.py` | 6 passed |
+
+**No speed numbers.** The interpreter runs the kernel in NumPy on the CPU, so timings would be
+meaningless. `scripts/gpu/bench_int8_kernel.py` times the kernel against fp16 `torch.matmul` and
+PyTorch dequantize+matmul on Qwen2.5-1.5B layer shapes, but **has not been run on an NVIDIA GPU.**
