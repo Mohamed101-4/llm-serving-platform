@@ -48,10 +48,38 @@ def test_loadgen_end_to_end(serve):
     workers = [serve(worker_app(FAST)) for _ in range(2)]
     router = serve(router_app([w.url for w in workers]))
     cfg = WorkloadConfig(output_tokens_median=8, max_output_tokens=16, seed=1)
-    samples, wall, _ = asyncio.run(run(router.url, rps=40, duration=1.0, model="mock-model", wcfg=cfg))
+    samples, wall, _, hit_rate = asyncio.run(run(router.url, rps=40, duration=1.0, model="mock-model", wcfg=cfg))
     s = summarize(samples, wall)
     assert s["requests_sent"] > 10
     assert s["requests_ok"] == s["requests_sent"]
     assert s["latency_ms"]["p99"] >= s["latency_ms"]["p50"] > 0
     assert s["ttft_ms"]["p50"] is not None
     assert set(s["requests_per_worker"]) == {w.url for w in workers}
+    assert hit_rate is not None and 0 < hit_rate <= 1  # shared prefixes give some cache hits
+
+
+def test_router_scrapes_worker_metrics(serve):
+    worker = serve(worker_app(FAST))
+    router = serve(router_app([worker.url], "least_load", scrape_interval=0.05))
+    httpx.post(f"{router.url}/v1/chat/completions", json=body(False), timeout=10)
+    import time
+
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        m = httpx.get(f"{router.url}/workers").json()[0]["metrics"]
+        if m.get("prefix_queries", 0) > 0:
+            break
+        time.sleep(0.05)
+    assert {"running", "waiting", "kv_cache", "prefix_hits", "prefix_queries"} <= set(m)
+
+
+def test_prefix_aware_pins_shared_prefix(serve):
+    workers = [serve(worker_app(FAST)) for _ in range(3)]
+    router = serve(router_app([w.url for w in workers], "prefix_aware"))
+    seen = set()
+    for i in range(6):
+        b = {"model": "m", "max_tokens": 2, "messages": [
+            {"role": "system", "content": "shared system prompt " * 40},
+            {"role": "user", "content": f"question {i}"}]}
+        seen.add(httpx.post(f"{router.url}/v1/chat/completions", json=b, timeout=10).headers["x-llmserve-worker"])
+    assert len(seen) == 1  # sequential requests with low load all go to the prefix's home worker
