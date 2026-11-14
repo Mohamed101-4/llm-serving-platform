@@ -20,6 +20,7 @@ spec:
   triggers:
     - type: metrics-api
       metadata:
-        url: "http://llmserve-router:8000/scaling"
+        # full name: KEDA runs in its own namespace, so the short Service name doesn't resolve
+        url: "http://llmserve-router.llmserve.svc.cluster.local:8000/scaling"
         valueLocation: "total_load"
         targetValue: "12"
