@@ -4,7 +4,7 @@ A distributed LLM serving platform: an OpenAI-compatible router in front of
 multiple vLLM workers, with smart routing, overload protection and a benchmark
 harness that compares each improvement against a naive round-robin baseline.
 
-Status: **Phase 1 (baseline) done.** See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
+Status: **Phases 1 (baseline) and 2 (smart routing) done.** See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
 which parts need a real NVIDIA GPU, and [RESULTS.md](RESULTS.md) for measured numbers.
 
 ## Architecture
@@ -13,12 +13,14 @@ which parts need a real NVIDIA GPU, and [RESULTS.md](RESULTS.md) for measured nu
 flowchart LR
     LG[Load generator<br/>Poisson arrivals,<br/>shared prefixes] -->|POST /v1/chat/completions| R
     subgraph R[Router]
-        P[Routing policy<br/>round-robin baseline]
+        P[Routing policy<br/>round_robin / least_load /<br/>prefix_aware]
+        S[Metrics scraper<br/>queue depth, KV cache]
     end
     R -->|stream SSE| W1[Worker 1<br/>vLLM or mock]
     R --> W2[Worker 2]
     R --> W3[Worker N]
-    W1 -. /metrics .-> R
+    W1 -. /metrics .-> S
+    W2 -. /metrics .-> S
     LG --> J[(results/*.json)]
 ```
 
@@ -41,6 +43,16 @@ flowchart LR
   delay the way real users experience it.
 - **Shared system-prompt prefixes in the workload.** Production chat traffic reuses
   a few long system prompts. This is what later makes prefix-aware routing measurable.
+- **Routing signals: router inflight + vLLM queue depth + KV-cache usage.** The router's own
+  inflight count is always fresh; scraped `num_requests_waiting` catches load from other
+  routers; `gpu_cache_usage_perc` near 1.0 means vLLM must queue or preempt even with a short
+  queue. Scrapes run every 250 ms, so the fresh local signal covers the gap between scrapes.
+- **Prefix-aware = rendezvous hashing + load, not hashing alone.** Each shared prefix (first
+  512 chars) gets a stable home worker via rendezvous hashing (only the dead worker's prefixes
+  move on failure). The home only gets a bonus worth 2 load units. A first version used a
+  bounded-load cap and let popular prefixes pile up: more cache hits, much worse TTFT near
+  saturation (see RESULTS.md). The lesson: cache locality is only worth it while it doesn't
+  create queueing.
 - **Mock worker instead of skipping tests.** The development machine has no NVIDIA
   GPU, so routing and admission logic is developed against a simulator that exposes
   vLLM's metric names. The router doesn't know which backend it's talking to. Mock
@@ -63,6 +75,16 @@ uv run python scripts/run_local.py --workers 4 --policy round_robin
 
 ```bash
 uv run python -m llmserve.bench.loadgen --rps 15 --duration 60 --label phase1-rr-mock --policy round_robin --backend mock
+```
+
+Compare all routing policies on the same workload (about 3.5 min per config):
+
+```bash
+RPS=22 PREFIXES=64 TAG=64prefix-22rps ./scripts/compare_policies.sh
+```
+
+```bash
+uv run python scripts/report.py results/phase2-64prefix-22rps-round_robin-*.json results/phase2-64prefix-22rps-least_load-*.json results/phase2-64prefix-22rps-prefix_aware-*.json
 ```
 
 On an NVIDIA GPU machine:

@@ -11,13 +11,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from .policies import NoHealthyWorker, Policy, RequestInfo, Worker, make_policy
+from .scraper import MetricsScraper
 
 
 def prompt_text(body: dict) -> str:
     return "\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in body.get("messages", []))
 
 
-def create_app(worker_urls: list[str], policy: Policy | str = "round_robin") -> FastAPI:
+def create_app(worker_urls: list[str], policy: Policy | str = "round_robin", scrape_interval: float = 0.25) -> FastAPI:
     workers = [Worker(url.rstrip("/")) for url in worker_urls]
     pol = make_policy(policy) if isinstance(policy, str) else policy
     client_holder: dict[str, httpx.AsyncClient] = {}
@@ -26,7 +27,10 @@ def create_app(worker_urls: list[str], policy: Policy | str = "round_robin") -> 
     async def lifespan(app: FastAPI):
         limits = httpx.Limits(max_connections=2000, max_keepalive_connections=500)
         client_holder["c"] = httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=5.0), limits=limits)
+        scraper = MetricsScraper(workers, client_holder["c"], scrape_interval)
+        scraper.start()
         yield
+        await scraper.stop()
         await client_holder["c"].aclose()
 
     app = FastAPI(title="llmserve router", lifespan=lifespan)
@@ -87,8 +91,9 @@ def main() -> None:
     p.add_argument("--port", type=int, default=8000)
     p.add_argument("--workers", required=True, help="comma-separated worker base URLs")
     p.add_argument("--policy", default="round_robin")
+    p.add_argument("--scrape-interval", type=float, default=0.25, help="seconds between /metrics scrapes")
     args = p.parse_args()
-    app = create_app(args.workers.split(","), args.policy)
+    app = create_app(args.workers.split(","), args.policy, args.scrape_interval)
     # long keep-alive avoids races where a client reuses a connection the server just closed
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning", timeout_keep_alive=75)
 
