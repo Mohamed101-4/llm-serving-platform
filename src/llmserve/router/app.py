@@ -44,12 +44,20 @@ def create_app(
     default_slots: int = 16,
     max_retries: int = 2,
     worker_dns: str | None = None,
+    prefill_urls: list[str] | None = None,
 ) -> FastAPI:
+    """With ``prefill_urls``, the router disaggregates prefill and decode: each request is first
+    prefilled on a prefill worker (chosen prefix-aware, so shared prompts hit its prefix cache), then
+    streamed from a decode worker (chosen by ``policy``) that receives the KV cache. This uses vLLM's
+    ``kv_transfer_params`` protocol, so the same code drives mock workers and vLLM NixlConnector.
+    """
     workers = [Worker(url.rstrip("/")) for url in worker_urls]
+    prefill_workers = [Worker(url.rstrip("/")) for url in prefill_urls or []]
+    prefill_pol = make_policy("prefix_aware")
     discovery = DnsDiscovery(workers, worker_dns) if worker_dns else None
     pol = make_policy(policy) if isinstance(policy, str) else policy
     admission = AdmissionController(slo_ttft_ms, default_slots) if slo_ttft_ms else None
-    metrics = RouterMetrics(lambda: workers, admission)
+    metrics = RouterMetrics(lambda: workers + prefill_workers, admission)
     setup_tracing("llmserve-router")
     tr = tracer("llmserve.router")
     client_holder: dict[str, httpx.AsyncClient] = {}
@@ -60,16 +68,19 @@ def create_app(
         client_holder["c"] = httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=2.0), limits=limits)
         if discovery:
             await discovery.start()
-        scraper = MetricsScraper(workers, client_holder["c"], scrape_interval)
-        scraper.start()
+        scrapers = [MetricsScraper(pool, client_holder["c"], scrape_interval) for pool in (workers, prefill_workers) if pool]
+        for sc in scrapers:
+            sc.start()
         yield
-        await scraper.stop()
+        for sc in scrapers:
+            await sc.stop()
         if discovery:
             await discovery.stop()
         await client_holder["c"].aclose()
 
     app = FastAPI(title="llmserve router", lifespan=lifespan, telemetry={"tracing": False})  # our own stage spans replace per-endpoint ones
     app.state.workers = workers
+    app.state.prefill_workers = prefill_workers
     app.state.policy = pol
     app.state.admission = admission
     app.state.metrics = metrics
@@ -100,14 +111,51 @@ def create_app(
     @app.get("/workers")
     async def list_workers():
         return [
-            {"url": w.url, "healthy": w.healthy, "inflight": w.inflight, "metrics": w.metrics,
+            {"url": w.url, "role": role, "healthy": w.healthy, "inflight": w.inflight, "metrics": w.metrics,
              "est_ttft_ms": admission.estimate_ttft_ms(w) if admission else None}
-            for w in workers
+            for role, pool in (("prefill", prefill_workers), ("decode" if prefill_workers else "mixed", workers))
+            for w in pool
         ]
 
     @app.get("/metrics")
     async def metrics_endpoint():
         return Response(generate_latest(metrics.registry), media_type=CONTENT_TYPE_LATEST)
+
+    async def prefill_stage(body: dict, info: RequestInfo, root_ctx):
+        """Prefill on a prefill worker; returns (kv_transfer_params, None) or (None, (status, msg))."""
+        client = client_holder["c"]
+        excluded: set[str] = set()
+        pbody = {**body, "stream": False, "max_tokens": 1,
+                 "kv_transfer_params": {"do_remote_decode": True, "do_remote_prefill": False,
+                                        "remote_engine_id": None, "remote_block_ids": None,
+                                        "remote_host": None, "remote_port": None}}
+        pbody.pop("stream_options", None)
+        for attempt in range(max_retries + 1):
+            try:
+                pw = prefill_pol.choose(info, [w for w in prefill_workers if w.url not in excluded])
+            except NoHealthyWorker:
+                return None, (503, "no healthy prefill workers")
+            metrics.routing.labels("prefill:" + prefill_pol.name, pw.url, "failover" if attempt else "policy").inc()
+            with tr.start_as_current_span("prefill_stage", context=root_ctx, kind=SpanKind.CLIENT,
+                                          attributes={"server.address": pw.url, "attempt": attempt}) as sp:
+                hdrs: dict[str, str] = {}
+                inject(hdrs)
+                pw.inflight += 1
+                try:
+                    r = await client.post(f"{pw.url}/v1/chat/completions", json=pbody, headers=hdrs)
+                except WORKER_DOWN as e:
+                    pw.healthy = False
+                    excluded.add(pw.url)
+                    metrics.worker_failures.labels(pw.url, "connect").inc()
+                    sp.record_exception(e)
+                    sp.set_status(Status(StatusCode.ERROR, "prefill worker down"))
+                    continue
+                finally:
+                    pw.inflight -= 1
+            if r.status_code != 200:
+                return None, (r.status_code, f"prefill failed: {r.text[:200]}")
+            return r.json().get("kv_transfer_params") or {}, None
+        return None, (502, "prefill workers failed")
 
     @app.post("/v1/chat/completions")
     async def chat(request: Request):
@@ -120,6 +168,7 @@ def create_app(
                              context=extract(dict(request.headers)),
                              attributes={"llm.max_tokens": info.max_tokens, "llm.stream": stream, "llm.policy": pol.name})
         root_ctx = trace.set_span_in_context(root)
+        t_req = time.perf_counter()
 
         def reject(status: int, message: str, headers: dict | None = None, worker_label: str = "none"):
             metrics.requests.labels(worker_label, str(status)).inc()
@@ -127,6 +176,12 @@ def create_app(
             root.set_status(Status(StatusCode.ERROR, message))
             root.end()
             return error(status, message, headers)
+
+        if prefill_workers:
+            kvp, failure = await prefill_stage(body, info, root_ctx)
+            if failure:
+                return reject(*failure)
+            body = {**body, "kv_transfer_params": kvp}
 
         # Pick a worker, admit or reject, and connect. Retry on another worker if the
         # chosen one is down; nothing has been sent to the client yet, so this is safe.
@@ -155,7 +210,6 @@ def create_app(
                 route_span.set_attribute("route.reason", reason)
             metrics.routing.labels(pol.name, worker.url, reason).inc()
             worker.inflight += 1
-            start = time.perf_counter()
             up_span = tr.start_span("upstream", kind=SpanKind.CLIENT, context=root_ctx,
                                     attributes={"server.address": worker.url, "attempt": attempt})
             up_ctx = trace.set_span_in_context(up_span)
@@ -186,7 +240,7 @@ def create_app(
 
         def finish(ttft: float | None, failed: bool = False) -> None:
             worker.inflight -= 1
-            latency = time.perf_counter() - start
+            latency = time.perf_counter() - t_req
             code = "stream_error" if failed else str(upstream.status_code)
             metrics.requests.labels(worker.url, code).inc()
             if upstream.status_code == 200 and not failed:
@@ -216,7 +270,7 @@ def create_app(
             try:
                 async for chunk in upstream.aiter_raw():
                     if ttft is None:
-                        ttft = time.perf_counter() - start
+                        ttft = time.perf_counter() - t_req
                         wait_span.end()
                         stream_span = tr.start_span("stream", context=up_ctx)
                     yield chunk
@@ -249,13 +303,15 @@ def main() -> None:
     p.add_argument("--policy", default="round_robin")
     p.add_argument("--scrape-interval", type=float, default=0.25, help="seconds between /metrics scrapes")
     p.add_argument("--slo-ttft-ms", type=float, default=None, help="enable admission control with this TTFT target")
+    p.add_argument("--prefill-workers", default="",
+                   help="comma-separated prefill worker URLs; enables disaggregated prefill/decode")
     p.add_argument("--default-slots", type=int, default=16, help="assumed concurrent sequences per worker until learned")
     args = p.parse_args()
     if not args.workers and not args.worker_dns:
         p.error("give --workers or --worker-dns")
     urls = [u for u in args.workers.split(",") if u]
     app = create_app(urls, args.policy, args.scrape_interval, args.slo_ttft_ms, args.default_slots,
-                     worker_dns=args.worker_dns)
+                     worker_dns=args.worker_dns, prefill_urls=[u for u in args.prefill_workers.split(",") if u])
     # long keep-alive avoids races where a client reuses a connection the server just closed
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning", timeout_keep_alive=75)
 
