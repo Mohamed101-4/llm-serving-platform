@@ -1,0 +1,62 @@
+{
+  "label": "phase7-int8-kernel-correctness",
+  "commit": "f31c48a",
+  "hardware": "CPU via TRITON_INTERPRET=1, Linux aarch64 (Apple M3 host, Docker Desktop)",
+  "interpreter": true,
+  "torch": "2.15.0+cpu",
+  "triton": "3.9.0",
+  "all_pass": true,
+  "shapes": [
+    {
+      "m": 1,
+      "k": 512,
+      "n": 512,
+      "dtype": "float32",
+      "max_abs_err_vs_reference": 4.1961669921875e-05,
+      "max_rel_err_vs_reference": 5.5831213103374466e-05,
+      "rel_fro_err_vs_fp32_unquantized": 0.007095322012901306,
+      "allclose_1e-4": true
+    },
+    {
+      "m": 8,
+      "k": 512,
+      "n": 1024,
+      "dtype": "float32",
+      "max_abs_err_vs_reference": 7.62939453125e-05,
+      "max_rel_err_vs_reference": 0.005641528870910406,
+      "rel_fro_err_vs_fp32_unquantized": 0.007410992402583361,
+      "allclose_1e-4": true
+    },
+    {
+      "m": 17,
+      "k": 384,
+      "n": 640,
+      "dtype": "float32",
+      "max_abs_err_vs_reference": 6.866455078125e-05,
+      "max_rel_err_vs_reference": 0.005291105248034,
+      "rel_fro_err_vs_fp32_unquantized": 0.007302477490156889,
+      "allclose_1e-4": true
+    },
+    {
+      "m": 64,
+      "k": 1024,
+      "n": 256,
+      "dtype": "float32",
+      "max_abs_err_vs_reference": 8.678436279296875e-05,
+      "max_rel_err_vs_reference": 0.025460632517933846,
+      "rel_fro_err_vs_fp32_unquantized": 0.007789019029587507,
+      "allclose_1e-4": true
+    },
+    {
+      "m": 128,
+      "k": 256,
+      "n": 512,
+      "dtype": "float32",
+      "max_abs_err_vs_reference": 3.814697265625e-05,
+      "max_rel_err_vs_reference": 0.004737754352390766,
+      "rel_fro_err_vs_fp32_unquantized": 0.006991618778556585,
+      "allclose_1e-4": true
+    }
+  ],
+  "note": "correctness only; no timing measured"
+}

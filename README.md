@@ -4,7 +4,7 @@ A distributed LLM serving platform: an OpenAI-compatible router in front of
 multiple vLLM workers, with smart routing, overload protection and a benchmark
 harness that compares each improvement against a naive round-robin baseline.
 
-Status: **Phases 1 to 6 done** (baseline, smart routing, overload protection, Kubernetes, observability, disaggregated prefill/decode). See [docs/K8S.md](docs/K8S.md) and [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md). See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
+Status: **Phases 1 to 7 done** (baseline, smart routing, overload protection, Kubernetes, observability, disaggregated prefill/decode, Triton INT8 kernel). No phase has been benchmarked on an NVIDIA GPU yet. See [docs/K8S.md](docs/K8S.md) and [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md). See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
 which parts need a real NVIDIA GPU, and [RESULTS.md](RESULTS.md) for measured numbers.
 
 ## Architecture
@@ -87,6 +87,11 @@ flowchart LR
   the protocol vLLM's NixlConnector proxy uses, so the same code drives mock and real workers.
   Prefill workers are chosen prefix-aware (that's where the prefix cache lives); decode workers by
   load. On the mock it only paid off for prefill-heavy traffic and cost TTFT (see RESULTS.md, Phase 6).
+- **INT8 weight-only kernel, validated before timed.** Decode reads every weight per step, so it is
+  memory-bound; int8 weights halve those bytes. The Triton kernel dequantizes tiles in registers and
+  applies the per-channel scale after the K reduction (it factors out), so no fp16 copy of the weights
+  is ever written. It is checked against a PyTorch reference under the Triton CPU interpreter in
+  Docker (Triton has no macOS build); speed needs a GPU (`scripts/gpu/bench_int8_kernel.py`).
 - **Mock worker instead of skipping tests.** The development machine has no NVIDIA
   GPU, so routing and admission logic is developed against a simulator that exposes
   vLLM's metric names. The router doesn't know which backend it's talking to. Mock
@@ -141,6 +146,12 @@ Colocated vs disaggregated prefill/decode (prefill-heavy workload):
 
 ```bash
 PREFIXES=100000 TAG=unique-prompts CONFIGS="colocated-4w:4:0 disagg-1p3d:3:1" ./scripts/disagg_bench.sh
+```
+
+Triton kernel correctness under the CPU interpreter (Docker; saves results/phase7-*.json):
+
+```bash
+./scripts/check_int8_kernel.sh
 ```
 
 Overload and failover benchmarks:
