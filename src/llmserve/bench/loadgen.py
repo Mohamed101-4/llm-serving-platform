@@ -51,6 +51,9 @@ async def one_request(client: httpx.AsyncClient, url: str, model: str, req, t0: 
                 if not line.startswith("data: ") or line == "data: [DONE]":
                     continue
                 chunk = json.loads(line[6:])
+                if "error" in chunk:  # stream cut short (e.g. worker died mid-generation)
+                    s.error = f"mid-stream: {chunk['error'].get('message', '')}"[:200]
+                    return s
                 delta = chunk["choices"][0].get("delta", {}) if chunk.get("choices") else {}
                 if delta.get("content"):
                     if s.ttft is None:
@@ -67,7 +70,7 @@ def pct(values: list[float], q: float) -> float | None:
 
 
 def summarize(samples: list[Sample], wall: float) -> dict:
-    ok = [s for s in samples if s.status == 200 and s.latency is not None]
+    ok = [s for s in samples if s.status == 200 and s.latency is not None and not s.error]
     lat = [s.latency for s in ok]
     ttft = [s.ttft for s in ok if s.ttft is not None]
     tpot = [(s.latency - s.ttft) / (s.output_tokens - 1) for s in ok if s.ttft and s.output_tokens > 1]
@@ -80,7 +83,7 @@ def summarize(samples: list[Sample], wall: float) -> dict:
         "requests_sent": len(samples),
         "requests_ok": len(ok),
         "requests_rejected_429": sum(1 for s in samples if s.status == 429),
-        "requests_failed": sum(1 for s in samples if s.status != 200 and s.status != 429),
+        "requests_failed": sum(1 for s in samples if s.status != 429 and (s.status != 200 or s.error)),
         "wall_time_s": round(wall, 3),
         "throughput_req_s": round(len(ok) / wall, 3),
         "output_tokens_per_s": round(out_tokens / wall, 2),
