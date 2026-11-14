@@ -101,11 +101,23 @@ async def gpu_sampler(stop: asyncio.Event, peaks: dict) -> None:
             pass
 
 
-async def run(url: str, rps: float, duration: float, model: str, wcfg: WorkloadConfig) -> tuple[list[Sample], float, dict]:
+async def prefix_counters(client: httpx.AsyncClient, url: str) -> tuple[float, float] | None:
+    """Total (hits, queries) of prefix-cache tokens across workers, via the router's /workers."""
+    try:
+        workers = (await client.get(f"{url}/workers", timeout=5)).json()
+    except Exception:
+        return None
+    hits = sum(w.get("metrics", {}).get("prefix_hits", 0.0) for w in workers)
+    queries = sum(w.get("metrics", {}).get("prefix_queries", 0.0) for w in workers)
+    return hits, queries
+
+
+async def run(url: str, rps: float, duration: float, model: str, wcfg: WorkloadConfig) -> tuple[list[Sample], float, dict, float | None]:
     workload = Workload(wcfg)
     rng = np.random.default_rng(wcfg.seed + 100)
     limits = httpx.Limits(max_connections=5000, max_keepalive_connections=1000)
     async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=10.0), limits=limits) as client:
+        before = await prefix_counters(client, url)
         stop = asyncio.Event()
         peaks: dict = {}
         sampler = asyncio.create_task(gpu_sampler(stop, peaks))
@@ -122,7 +134,12 @@ async def run(url: str, rps: float, duration: float, model: str, wcfg: WorkloadC
         wall = time.perf_counter() - t0
         stop.set()
         await sampler
-    return list(samples), wall, peaks
+        await asyncio.sleep(1.0)  # let the router scrape final worker counters
+        after = await prefix_counters(client, url)
+    hit_rate = None
+    if before and after and after[1] > before[1]:
+        hit_rate = (after[0] - before[0]) / (after[1] - before[1])
+    return list(samples), wall, peaks, hit_rate
 
 
 def main() -> None:
@@ -140,9 +157,10 @@ def main() -> None:
     args = p.parse_args()
 
     wcfg = WorkloadConfig(num_prefixes=args.num_prefixes, seed=args.seed)
-    samples, wall, peaks = asyncio.run(run(args.url, args.rps, args.duration, args.model, wcfg))
+    samples, wall, peaks, hit_rate = asyncio.run(run(args.url, args.rps, args.duration, args.model, wcfg))
     summary = summarize(samples, wall)
     summary["gpu_memory_peak_mib"] = {str(k): v for k, v in peaks.items()} or None
+    summary["prefix_cache_hit_rate"] = None if hit_rate is None else round(hit_rate, 4)
 
     result = {
         "label": args.label,
