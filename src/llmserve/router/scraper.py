@@ -38,20 +38,30 @@ def parse_metrics(text: str) -> dict[str, float]:
 
 
 class MetricsScraper:
-    def __init__(self, workers: list[Worker], client: httpx.AsyncClient, interval: float = 0.25):
+    """Doubles as the active health check: ``fail_threshold`` failed scrapes in a row mark
+    a worker unhealthy, and one successful scrape brings it back."""
+
+    def __init__(self, workers: list[Worker], client: httpx.AsyncClient, interval: float = 0.25,
+                 fail_threshold: int = 2):
         self.workers = workers
         self.client = client
         self.interval = interval
+        self.fail_threshold = fail_threshold
+        self._fails: dict[str, int] = {}
         self._task: asyncio.Task | None = None
 
     async def scrape_once(self, w: Worker) -> None:
         try:
-            r = await self.client.get(f"{w.url}/metrics", timeout=2.0)
+            r = await self.client.get(f"{w.url}/metrics", timeout=max(1.0, self.interval * 4))
             r.raise_for_status()
             w.metrics = parse_metrics(r.text)
             w.metrics["scraped_at"] = time.time()
+            self._fails[w.url] = 0
+            w.healthy = True
         except httpx.HTTPError:
-            pass  # health handling comes in Phase 3; keep the last known values
+            self._fails[w.url] = self._fails.get(w.url, 0) + 1
+            if self._fails[w.url] >= self.fail_threshold:
+                w.healthy = False
 
     async def _loop(self) -> None:
         while True:
