@@ -64,4 +64,5 @@ class RouterMetrics:
                               ["worker"], buckets=TTFT_BUCKETS, registry=r)
         self.latency = Histogram("llmserve_request_latency_seconds", "End-to-end request latency through the router",
                                  ["worker"], buckets=LATENCY_BUCKETS, registry=r)
-        r.register(WorkerCollector(get_workers, admission))
+        self.collector = WorkerCollector(get_workers, admission)
+        r.register(self.collector)

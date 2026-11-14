@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
+import os
 import time
 import uuid
 
@@ -23,7 +25,7 @@ def prompt_from_messages(messages: list[dict]) -> str:
     return "\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
 
 
-def create_app(config: SimConfig | None = None, model: str = "mock-model") -> FastAPI:
+def create_app(config: SimConfig | None = None, model: str = "mock-model", chaos: bool = False) -> FastAPI:
     app = FastAPI(title="llmserve mock worker", telemetry={"tracing": False})  # our own stage spans replace per-endpoint ones
     worker = SimWorker(config or SimConfig())
     setup_tracing("llmserve-mock-worker")
@@ -37,6 +39,13 @@ def create_app(config: SimConfig | None = None, model: str = "mock-model") -> Fa
     @app.get("/v1/models")
     async def models():
         return {"object": "list", "data": [{"id": model, "object": "model"}]}
+
+    if chaos:
+        @app.post("/admin/crash")
+        async def crash():
+            """Demo fault injection: exit hard right after replying, like a GPU node dying."""
+            asyncio.get_running_loop().call_later(0.1, os._exit, 1)
+            return {"crashing": True}
 
     @app.get("/metrics")
     async def metrics():
@@ -114,11 +123,12 @@ def main() -> None:
     p.add_argument("--prefill-interference", action="store_true",
                    help="prefills stall decode steps on the same worker (shared GPU)")
     p.add_argument("--kv-transfer-ms-per-token", type=float, default=SimConfig.kv_transfer_ms_per_token)
+    p.add_argument("--chaos", action="store_true", help="enable POST /admin/crash (dashboard demo)")
     args = p.parse_args()
     cfg = SimConfig(max_num_seqs=args.max_num_seqs, kv_capacity_tokens=args.kv_capacity_tokens,
                     prefill_interference=args.prefill_interference,
                     kv_transfer_ms_per_token=args.kv_transfer_ms_per_token)
-    uvicorn.run(create_app(cfg, args.model), host=args.host, port=args.port, log_level="warning")
+    uvicorn.run(create_app(cfg, args.model, args.chaos), host=args.host, port=args.port, log_level="warning")
 
 
 if __name__ == "__main__":
