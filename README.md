@@ -7,6 +7,12 @@ harness that compares each improvement against a naive round-robin baseline.
 Status: **Phases 1 to 7 done** (baseline, smart routing, overload protection, Kubernetes, observability, disaggregated prefill/decode, Triton INT8 kernel). No phase has been benchmarked on an NVIDIA GPU yet. See [docs/K8S.md](docs/K8S.md) and [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md). See [docs/PLAN.md](docs/PLAN.md) for the phase plan and
 which parts need a real NVIDIA GPU, and [RESULTS.md](RESULTS.md) for measured numbers.
 
+![llmserve control panel](docs/img/dashboard.jpg)
+
+*Live control panel at `/ui` (mock workers on a laptop): real requests flowing from the router to
+workers, rolling TTFT and cache-hit stats, and buttons to switch routing policy, toggle admission
+control, add load, and kill a worker to watch failover.*
+
 ## Architecture
 
 ```mermaid
@@ -92,6 +98,11 @@ flowchart LR
   applies the per-channel scale after the K reduction (it factors out), so no fp16 copy of the weights
   is ever written. It is checked against a PyTorch reference under the Triton CPU interpreter in
   Docker (Triton has no macOS build); speed needs a GPU (`scripts/gpu/bench_int8_kernel.py`).
+- **Dashboard without a frontend build.** `/ui` is one static HTML file (canvas, no framework)
+  served by the router and polling `/ui/state` twice a second, so it runs anywhere the router runs.
+  Its controls go through the same code paths as real traffic: the load generator sends requests
+  through the router, and "kill a worker" really crashes a mock worker process (`--chaos`), so the
+  failover you see is the real health-check and retry logic.
 - **Mock worker instead of skipping tests.** The development machine has no NVIDIA
   GPU, so routing and admission logic is developed against a simulator that exposes
   vLLM's metric names. The router doesn't know which backend it's talking to. Mock
@@ -152,6 +163,12 @@ Triton kernel correctness under the CPU interpreter (Docker; saves results/phase
 
 ```bash
 ./scripts/check_int8_kernel.sh
+```
+
+Live control panel (then open http://127.0.0.1:8000/ui and drag the load slider):
+
+```bash
+uv run python scripts/run_local.py --workers 4 --policy prefix_aware --slo-ttft-ms 500 --respawn-after 8
 ```
 
 Overload and failover benchmarks:

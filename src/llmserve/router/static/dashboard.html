@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>llmserve control panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0B0D12;--panel:#12151D;--panel2:#171B26;--line:#232838;--line2:#2F3548;--text:#E6E8EE;--mut:#8A90A2;--dim:#5C6275;
+--purple:#8B83F0;--purple-d:#534AB7;--blue:#85B7EB;--coral:#F0997B;--teal:#5DCAA5;--red:#E5534B;--green:#97C459;--amber:#EFB34A;
+--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 var(--sans)}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 24px 40px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:12px}.logo{width:32px;height:32px;border-radius:9px;background:var(--purple-d);display:grid;place-items:center}
+.logo svg{width:18px;height:18px}.title{font-weight:500;font-size:17px;letter-spacing:-.01em}
+.tag{font:500 11px var(--mono);padding:3px 9px;border-radius:6px;white-space:nowrap}.live{background:#16290B;color:var(--green)}.off{background:#3A1512;color:var(--coral)}
+.mut{color:var(--mut)}.mono{font-family:var(--mono)}.k{font:500 11px var(--mono);color:var(--mut);letter-spacing:.06em;text-transform:uppercase}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{all:unset;cursor:pointer;padding:6px 12px;border-radius:7px;font:500 12px var(--mono);color:var(--mut);transition:.15s}
+.seg button:hover{color:var(--text)}.seg button.on{background:#262B40;color:var(--text)}
+.grid{display:grid;gap:14px}.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.row{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+.kpi .v{font-size:26px;font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.kpi .u{font-size:12px;color:var(--mut);margin-left:4px}
+.kpi .line{display:flex;align-items:flex-end;justify-content:space-between;margin-top:4px}
+.hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
+canvas{display:block;width:100%}
+.feed{display:grid;gap:6px;font:12px var(--mono)}.feed .r{display:grid;grid-template-columns:1fr 70px 46px 70px;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid #1A1E2A;animation:in .3s ease}
+@keyframes in{from{opacity:0;transform:translateY(-4px)}to{opacity:1}}
+.b200{background:#16290B;color:var(--green)}.b429{background:#3A2408;color:var(--amber)}.berr{background:#3A1512;color:var(--coral)}
+.ctrl{display:grid;gap:14px}.crow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+input[type=range]{flex:1;min-width:140px;accent-color:var(--purple)}
+.btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:8px 13px;font:500 12px var(--sans);transition:.15s}
+.btn:hover{background:#20253A;border-color:#3B4260}.btn:active{transform:scale(.98)}.btn.pri{background:var(--purple-d);border-color:#6A61D6}.btn.pri:hover{background:#5F55CC}
+.sw{position:relative;width:36px;height:20px;background:#2A2F42;border-radius:20px;cursor:pointer;transition:.2s;flex:none}.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#C9CCD6;transition:.2s}
+.sw.on{background:var(--purple-d)}.sw.on::after{left:18px;background:#fff}
+.chat{display:flex;flex-direction:column;gap:10px;min-height:100%}
+.out{flex:1;min-height:96px;max-height:180px;overflow:auto;background:#0E1118;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:12.5px/1.6 var(--mono);color:#C9CCD6;white-space:pre-wrap}
+.in{display:flex;gap:8px}.in input{flex:1;background:#0E1118;border:1px solid var(--line2);border-radius:9px;color:var(--text);padding:9px 12px;font:13px var(--sans);outline:none}.in input:focus{border-color:var(--purple)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;background:#1D2132;border:1px solid var(--line2);padding:9px 16px;border-radius:10px;font-size:13px;transition:.25s;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.legend span{margin-left:12px}.dotc{display:inline-block;width:8px;height:2px;vertical-align:middle;margin-right:5px}
+footer{margin-top:18px;font:11px var(--mono);color:var(--dim);text-align:center}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.row{grid-template-columns:1fr}.wrap{padding:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#EEEDFE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L4 14h7l-1 7 9-11h-7l1-7z"/></svg></div>
+    <span class="title">llmserve</span>
+    <span class="tag live" id="status">● live</span>
+    <span class="mut mono" style="font-size:12px" id="sub">connecting…</span>
+  </div>
+  <div class="seg" id="seg"></div>
+</header>
+
+<div class="grid kpis" id="kpis"></div>
+
+<div class="card" style="margin-top:14px">
+  <div class="hd"><span class="k">Request flow</span><span class="k" id="flowlbl"></span></div>
+  <canvas id="flow" height="210"></canvas>
+</div>
+
+<div class="grid row" style="margin-top:14px">
+  <div class="card">
+    <div class="hd"><span class="k">Time to first token · 5 s window</span>
+      <span class="k legend"><span><i class="dotc" style="background:var(--blue)"></i>p50</span><span><i class="dotc" style="background:var(--coral)"></i>p99</span><span id="slolg"><i class="dotc" style="background:var(--dim)"></i>SLO</span></span></div>
+    <canvas id="chart" height="190"></canvas>
+  </div>
+  <div class="card">
+    <div class="hd"><span class="k">Live requests</span><span class="k" id="feedlbl"></span></div>
+    <div class="feed" id="feed"></div>
+  </div>
+</div>
+
+<div class="grid row" style="margin-top:14px">
+  <div class="card ctrl">
+    <div class="hd" style="margin:0"><span class="k">Controls</span></div>
+    <div class="crow"><span class="k" style="width:64px">Load</span><input type="range" id="load" min="0" max="45" step="1" value="0"><span class="mono" id="lo" style="min-width:60px">0 rps</span></div>
+    <div class="crow"><span class="k" style="width:64px">SLO</span><div class="sw" id="adm" role="switch" aria-label="SLO admission control"></div>
+      <span class="mut" style="font-size:13px">Admission control · shed with 429 when TTFT would exceed</span>
+      <input type="number" id="slo" value="500" min="50" step="50" style="width:72px;background:#0E1118;border:1px solid var(--line2);border-radius:7px;color:var(--text);padding:4px 8px;font:12px var(--mono)"> <span class="mut mono" style="font-size:12px">ms</span></div>
+    <div class="crow"><span class="k" style="width:64px">Chaos</span>
+      <button class="btn" id="spike">⚡ Traffic spike</button>
+      <button class="btn" id="kill">✕ Kill a worker</button>
+      <span class="mut" style="font-size:12px">needs <span class="mono">--respawn-after</span></span></div>
+  </div>
+  <div class="card chat">
+    <div class="hd" style="margin:0"><span class="k">Playground</span><span class="k" id="chatmeta"></span></div>
+    <div class="out" id="out">Send a prompt through the router. You'll see which worker served it and its TTFT.</div>
+    <form class="in" id="chatf"><input id="msg" placeholder="Explain prefix caching in one sentence" autocomplete="off"><button class="btn pri" type="submit">Send</button></form>
+  </div>
+</div>
+<footer>llmserve · router dashboard · polling /ui/state every 500 ms</footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const COL = {blue:css('--blue'),coral:css('--coral'),teal:css('--teal'),purple:css('--purple'),red:css('--red'),amber:css('--amber'),green:css('--green'),line:css('--line'),line2:css('--line2'),mut:css('--mut'),dim:css('--dim'),text:css('--text'),panel2:css('--panel2')};
+const KPI = [["Throughput","req/s",COL.purple,s=>s.window.throughput,v=>v.toFixed(1)],
+             ["TTFT p99","ms",COL.coral,s=>s.window.ttft_p99,v=>Math.round(v).toLocaleString()],
+             ["Prefix cache hit","%",COL.teal,s=>s.cache_hit_rate==null?null:s.cache_hit_rate*100,v=>v.toFixed(0)],
+             ["Shed (429)","%",COL.amber,s=>s.window.shed_pct,v=>v.toFixed(0)]];
+$('kpis').innerHTML = KPI.map((k,i)=>`<div class="card kpi"><div class="k">${k[0]}</div><div class="line"><div><span class="v" id="kv${i}">–</span><span class="u">${k[1]}</span></div><canvas id="sp${i}" style="width:96px;height:32px"></canvas></div></div>`).join('');
+const HIST = KPI.map(()=>[]), P50=[], P99=[], N_HIST=120;
+let S=null, seq=0, dots=[], feed=[], ui={load:0, spikeUntil:0};
+
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
+async function post(path, body){const r=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||r.status);return j}
+function short(u){try{return new URL(u).host.replace('127.0.0.1','')}catch{return u}}
+function ctx(id,h){const c=$(id),w=c.clientWidth,d=devicePixelRatio||1;c.width=w*d;c.height=h*d;const x=c.getContext('2d');x.scale(d,d);return [x,w,h]}
+
+async function poll(){
+  try{
+    const r=await fetch(`/ui/state?since=${seq}`); S=await r.json();
+    $('status').className='tag live';$('status').textContent='● live';
+  }catch(e){$('status').className='tag off';$('status').textContent='● offline';return}
+  seq=S.seq;
+  const flowW=S.workers.filter(w=>w.role!=='prefill'), pre=S.workers.filter(w=>w.role==='prefill');
+  $('sub').textContent=`${flowW.length} workers${pre.length?` + ${pre.length} prefill`:''} · ${S.workers.filter(w=>w.healthy).length} healthy`;
+  if(!$('seg').children.length) $('seg').innerHTML=S.policies.map(p=>`<button data-p="${p}">${p}</button>`).join('');
+  [...$('seg').children].forEach(b=>b.classList.toggle('on',b.dataset.p===S.policy));
+  $('adm').classList.toggle('on',S.admission.enabled); if(S.admission.enabled && document.activeElement!==$('slo')) $('slo').value=S.admission.slo_ms;
+  if(document.activeElement!==$('load') && Date.now()>ui.spikeUntil){$('load').value=Math.min(45,S.load_rps);$('lo').textContent=Math.round(S.load_rps)+' rps'}
+  KPI.forEach((k,i)=>{const v=k[3](S);$('kv'+i).textContent=v==null?'–':k[4](v);if(v!=null){HIST[i].push(v);if(HIST[i].length>60)HIST[i].shift()}});
+  P50.push(S.window.ttft_p50);P99.push(S.window.ttft_p99);if(P50.length>N_HIST){P50.shift();P99.shift()}
+  $('flowlbl').textContent=`${S.window.throughput.toFixed(1)} req/s · policy ${S.policy}${S.admission.enabled?` · SLO ${S.admission.slo_ms} ms`:''}`;
+  const idx=Object.fromEntries(flowW.map((w,i)=>[w.url,i]));
+  const ev=S.events.slice(-80);ev.forEach((e,j)=>{dots.push({t:-(j/ev.length)*0.45-Math.random()*0.03,w:idx[e.worker],code:e.code})});  // spread over the 500 ms poll
+  S.events.forEach(e=>{feed.unshift(e)}); feed=feed.slice(0,9);
+  $('feed').innerHTML=feed.map(e=>{const c=e.code===200?'b200':e.code===429?'b429':'berr';
+    return `<div class="r"><span class="mut">#${e.id}</span><span>${e.worker==='none'?'—':short(e.worker)}</span><span class="tag ${c}" style="text-align:center">${e.code}</span><span style="text-align:right">${e.code===200?Math.round(e.ttft_ms)+' ms':e.code===429?'shed':'failed'}</span></div>`}).join('')||'<div class="mut">No traffic yet. Drag the load slider.</div>';
+  $('feedlbl').textContent=S.window.failed?`${S.window.failed} failed / 5 s`:'';
+  drawSpark();drawChart();
+}
+
+function drawSpark(){HIST.forEach((a,i)=>{const[x,w,h]=ctx('sp'+i,32);if(a.length<2)return;const mx=Math.max(...a),mn=Math.min(...a),rg=(mx-mn)||1;
+  x.strokeStyle=KPI[i][2];x.lineWidth=1.6;x.lineJoin='round';x.beginPath();a.forEach((v,j)=>{const px=j/(a.length-1)*w,py=h-3-(v-mn)/rg*(h-6);j?x.lineTo(px,py):x.moveTo(px,py)});x.stroke();
+  x.lineTo(w,h);x.lineTo(0,h);x.closePath();x.globalAlpha=.08;x.fillStyle=KPI[i][2];x.fill();x.globalAlpha=1})}
+
+function drawChart(){const[x,w,h]=ctx('chart',190);const pad=28,slo=S&&S.admission.enabled?S.admission.slo_ms:null;
+  const vals=P99.filter(v=>v!=null);const mx=Math.max(slo?slo*1.4:300,...vals,1)*1.1;
+  x.font='10px '+css('--mono');x.fillStyle=COL.dim;x.strokeStyle=COL.line;x.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=6+(h-pad)*i/4;x.beginPath();x.moveTo(44,y);x.lineTo(w,y);x.stroke();x.fillText(fmt(mx*(1-i/4)),0,y+3)}
+  if(slo){const y=6+(h-pad)*(1-slo/mx);x.setLineDash([4,4]);x.strokeStyle=COL.dim;x.beginPath();x.moveTo(44,y);x.lineTo(w,y);x.stroke();x.setLineDash([])}
+  $('slolg').style.display=slo?'':'none';
+  [[P50,COL.blue],[P99,COL.coral]].forEach(([a,c])=>{x.strokeStyle=c;x.lineWidth=2;x.lineJoin='round';x.beginPath();let st=false;
+    a.forEach((v,i)=>{if(v==null){st=false;return}const px=44+i/(N_HIST-1)*(w-44),py=6+(h-pad)*(1-v/mx);st?x.lineTo(px,py):x.moveTo(px,py);st=true});x.stroke()});
+  x.fillStyle=COL.dim;x.fillText('60 s ago',44,h-6);x.textAlign='right';x.fillText('now',w,h-6);x.textAlign='left'}
+function fmt(v){return v>=1000?(v/1000).toFixed(1)+'s':Math.round(v)+'ms'}
+
+function frame(){
+  const H=210;const[x,w,h]=ctx('flow',H);requestAnimationFrame(frame);if(!S)return;
+  const ws=S.workers.filter(w=>w.role!=='prefill'),n=Math.max(ws.length,1);
+  const cx=w*.08,rx=w*.3,wx=w*.66,ww=w-wx-4,top=24,gap=n>1?(h-48)/(n-1):0,wy=i=>n>1?top+i*gap:h/2,ry=h/2;
+  x.lineWidth=1;x.strokeStyle=COL.line;
+  x.beginPath();x.moveTo(cx+30,ry);x.lineTo(rx-52,ry);x.stroke();
+  ws.forEach((wk,i)=>{x.beginPath();x.moveTo(rx+52,ry);x.bezierCurveTo(w*.48,ry,w*.48,wy(i),wx,wy(i));x.stroke()});
+  x.font='500 12px '+css('--sans');x.textAlign='center';x.fillStyle=COL.mut;x.fillText('clients',cx,ry+4);
+  x.fillStyle=COL.panel2;x.strokeStyle='#534AB7';x.beginPath();x.roundRect(rx-52,ry-26,104,52,10);x.fill();x.stroke();
+  x.fillStyle=COL.text;x.fillText('router',rx,ry-3);x.fillStyle=COL.mut;x.font='10px '+css('--mono');x.fillText(S.policy,rx,ry+13);
+  x.textAlign='left';
+  ws.forEach((wk,i)=>{const y=wy(i),bh=Math.min(30,gap?gap-8:30);x.fillStyle=COL.panel2;x.strokeStyle=wk.healthy?COL.line2:'#7A2420';x.beginPath();x.roundRect(wx,y-bh/2,ww,bh,8);x.fill();x.stroke();
+    x.fillStyle=wk.healthy?COL.green:COL.red;x.beginPath();x.arc(wx+12,y,3.5,0,7);x.fill();
+    x.fillStyle=wk.healthy?COL.text:COL.coral;x.font='500 11px '+css('--mono');x.fillText(short(wk.url),wx+22,y+4);
+    if(!wk.healthy){x.fillStyle=COL.coral;x.fillText('down',wx+ww-40,y+4);return}
+    const bx=wx+92,bw=Math.max(20,ww-200);x.fillStyle='#1E2333';x.fillRect(bx,y-3,bw,6);x.fillStyle=wk.kv_cache>.85?COL.coral:COL.teal;x.fillRect(bx,y-3,bw*Math.min(1,wk.kv_cache),6);
+    x.fillStyle=COL.mut;x.font='10px '+css('--mono');x.fillText(`${Math.round(wk.running)} run · ${Math.round(wk.waiting)} q`,bx+bw+8,y+4)});
+  for(let i=dots.length-1;i>=0;i--){const d=dots[i];d.t+=.016;if(d.t>1){dots.splice(i,1);continue}if(d.t<0)continue;let px,py,c=COL.purple;
+    if(d.t<.32){const s=d.t/.32;px=cx+30+(rx-82-cx)*s;py=ry}
+    else if(d.code===429||d.w===undefined){const s=(d.t-.32)/.68;px=rx+(d.code===429?0:10);py=ry+26+s*(h-ry-26);c=d.code===429?COL.amber:COL.red}
+    else{const s=(d.t-.32)/.68,m=1-s,y1=wy(d.w),P=[[rx+52,ry],[w*.48,ry],[w*.48,y1],[wx,y1]];px=m*m*m*P[0][0]+3*m*m*s*P[1][0]+3*m*s*s*P[2][0]+s*s*s*P[3][0];py=m*m*m*P[0][1]+3*m*m*s*P[1][1]+3*m*s*s*P[2][1]+s*s*s*P[3][1];if(d.code!==200)c=COL.red}
+    x.fillStyle=c;x.globalAlpha=.25;x.beginPath();x.arc(px,py,5,0,7);x.fill();x.globalAlpha=1;x.beginPath();x.arc(px,py,2.4,0,7);x.fill()}
+}
+
+$('seg').onclick=async e=>{const p=e.target.dataset.p;if(!p)return;await post('/ui/policy',{name:p});toast(`Routing policy: ${p}`)};
+$('adm').onclick=async()=>{const on=!$('adm').classList.contains('on');await post('/ui/admission',{enabled:on,slo_ms:+$('slo').value});toast(on?`Admission on (SLO ${$('slo').value} ms)`:'Admission off')};
+$('slo').onchange=async()=>{if($('adm').classList.contains('on')){await post('/ui/admission',{enabled:true,slo_ms:+$('slo').value});toast(`SLO ${$('slo').value} ms`)}};
+let lt;$('load').oninput=()=>{const v=+$('load').value;$('lo').textContent=v+' rps';clearTimeout(lt);lt=setTimeout(()=>post('/ui/load',{rps:v}),150)};
+$('spike').onclick=async()=>{const base=+$('load').value;ui.spikeUntil=Date.now()+8000;await post('/ui/load',{rps:base+20});toast(`Spike: ${base+20} rps for 8 s`);setTimeout(()=>post('/ui/load',{rps:base}),8000)};
+$('kill').onclick=async()=>{const up=(S?.workers||[]).filter(w=>w.healthy&&w.role!=='prefill');if(up.length<2)return toast('Keep at least one worker alive');
+  const w=up[Math.floor(Math.random()*up.length)];try{await post('/ui/kill',{url:w.url});toast(`Killed ${short(w.url)}`)}catch(e){toast(e.message)}};
+$('chatf').onsubmit=async e=>{e.preventDefault();const m=$('msg').value.trim()||$('msg').placeholder;const out=$('out');out.textContent='';$('chatmeta').textContent='…';
+  const t0=performance.now();let ttft=null;
+  try{const r=await fetch('/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'auto',stream:true,max_tokens:64,messages:[{role:'user',content:m}]})});
+    if(r.status!==200){const j=await r.json().catch(()=>({}));const why=j.error?.message||r.statusText;
+      out.textContent=r.status===429?`Shed by admission control (429).\n${why}\nRetry after ${r.headers.get('retry-after')||'?'} s, or lower the load.`:`HTTP ${r.status}: ${why}`;$('chatmeta').textContent=`HTTP ${r.status}`;return}
+    const wk=r.headers.get('x-llmserve-worker');const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
+    for(;;){const{value,done}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();
+      for(const ln of lines){if(!ln.startsWith('data: {'))continue;const j=JSON.parse(ln.slice(6));const t=j.choices?.[0]?.delta?.content;if(t){if(ttft==null)ttft=performance.now()-t0;out.textContent+=t}}}
+    $('chatmeta').textContent=`${short(wk)} · TTFT ${Math.round(ttft)} ms · ${Math.round(performance.now()-t0)} ms total`}
+  catch(err){out.textContent=String(err)}};
+
+setInterval(poll,500);poll();frame();
+</script>
+</body>
+</html>

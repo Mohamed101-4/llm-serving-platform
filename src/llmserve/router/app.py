@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from collections import deque
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 
 import httpx
 import uvicorn
@@ -23,6 +25,7 @@ from .discovery import DnsDiscovery
 from .metrics import RouterMetrics
 from .policies import NoHealthyWorker, Policy, RequestInfo, Worker, make_policy
 from .scraper import MetricsScraper
+from .ui import install_ui
 
 # Errors that mean "this worker is gone", as opposed to a slow or bad request.
 WORKER_DOWN = (httpx.ConnectError, httpx.ConnectTimeout, httpx.RemoteProtocolError, httpx.ReadError, httpx.WriteError)
@@ -58,6 +61,15 @@ def create_app(
     pol = make_policy(policy) if isinstance(policy, str) else policy
     admission = AdmissionController(slo_ttft_ms, default_slots) if slo_ttft_ms else None
     metrics = RouterMetrics(lambda: workers + prefill_workers, admission)
+    # Mutable control state: the dashboard can switch policy and toggle admission at runtime.
+    ctl = SimpleNamespace(pol=pol, admission=admission, default_slots=default_slots,
+                          events=deque(maxlen=5000), seq=0)
+
+    def record_event(worker_url: str, code: int | str, ttft: float | None = None, latency: float | None = None):
+        ctl.seq += 1
+        ctl.events.append({"id": ctl.seq, "ts": time.time(), "worker": worker_url, "code": code,
+                           "ttft_ms": None if ttft is None else round(ttft * 1000, 1),
+                           "latency_ms": None if latency is None else round(latency * 1000, 1)})
     setup_tracing("llmserve-router")
     tr = tracer("llmserve.router")
     client_holder: dict[str, httpx.AsyncClient] = {}
@@ -83,12 +95,13 @@ def create_app(
     app.state.prefill_workers = prefill_workers
     app.state.policy = pol
     app.state.admission = admission
+    app.state.ctl = ctl
     app.state.metrics = metrics
 
     @app.get("/health")
     async def health():
         """Liveness: the router process is up."""
-        return {"status": "ok", "policy": pol.name, "healthy_workers": sum(w.healthy for w in workers)}
+        return {"status": "ok", "policy": ctl.pol.name, "healthy_workers": sum(w.healthy for w in workers)}
 
     @app.get("/ready")
     async def ready():
@@ -112,7 +125,7 @@ def create_app(
     async def list_workers():
         return [
             {"url": w.url, "role": role, "healthy": w.healthy, "inflight": w.inflight, "metrics": w.metrics,
-             "est_ttft_ms": admission.estimate_ttft_ms(w) if admission else None}
+             "est_ttft_ms": ctl.admission.estimate_ttft_ms(w) if ctl.admission else None}
             for role, pool in (("prefill", prefill_workers), ("decode" if prefill_workers else "mixed", workers))
             for w in pool
         ]
@@ -159,6 +172,7 @@ def create_app(
 
     @app.post("/v1/chat/completions")
     async def chat(request: Request):
+        pol, admission = ctl.pol, ctl.admission  # snapshot: a mid-request switch can't mix policies
         body = await request.json()
         info = RequestInfo(prompt=prompt_text(body), max_tokens=int(body.get("max_tokens") or 64))
         stream = bool(body.get("stream"))
@@ -172,6 +186,7 @@ def create_app(
 
         def reject(status: int, message: str, headers: dict | None = None, worker_label: str = "none"):
             metrics.requests.labels(worker_label, str(status)).inc()
+            record_event(worker_label, status)
             root.set_attribute("http.status_code", status)
             root.set_status(Status(StatusCode.ERROR, message))
             root.end()
@@ -243,6 +258,7 @@ def create_app(
             latency = time.perf_counter() - t_req
             code = "stream_error" if failed else str(upstream.status_code)
             metrics.requests.labels(worker.url, code).inc()
+            record_event(worker.url, code if failed else upstream.status_code, ttft, latency)
             if upstream.status_code == 200 and not failed:
                 metrics.latency.labels(worker.url).observe(latency)
                 if ttft is not None:
@@ -291,6 +307,7 @@ def create_app(
         return StreamingResponse(relay(), status_code=upstream.status_code,
                                  media_type=upstream.headers.get("content-type", "text/event-stream"), headers=headers)
 
+    install_ui(app, ctl, workers, prefill_workers, metrics)
     return app
 
 
